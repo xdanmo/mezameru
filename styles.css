@@ -1,0 +1,107 @@
+:root {
+    --hm-black: #000000;
+    --hm-white: #ffffff;
+    --hm-gray-light: #f4f4f4;
+    --hm-gray-border: #e0e0e0;
+    --hm-gray-text: #767676;
+    --hm-red: #d50000;
+    --nav-height: 60px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+
+body { background-color: var(--hm-gray-light); color: var(--hm-black); display: flex; justify-content: center; }
+
+.app-container { width: 100%; max-width: 480px; height: 100vh; background-color: var(--hm-white); position: relative; display: flex; flex-direction: column; overflow: hidden; border-left: 1px solid var(--hm-gray-border); border-right: 1px solid var(--hm-gray-border); }
+
+/* --- Tabs Content --- */
+.tab-content { flex: 1; overflow-y: auto; padding: 24px 24px calc(var(--nav-height) + 80px) 24px; display: none; }
+.tab-content.active { display: block; }
+
+/* --- Headers --- */
+.hm-header { text-align: center; margin-bottom: 24px; padding-top: 10px; }
+.hm-header h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+.subtitle { color: var(--hm-gray-text); font-size: 0.75rem; letter-spacing: 1.5px; font-weight: 500; margin-top: 12px; text-transform: uppercase; }
+
+/* --- Horizontal Date Scroller --- */
+.date-scroller-wrapper { width: 100%; margin: 0 auto 12px auto; position: relative; }
+.date-scroller-wrapper::before, .date-scroller-wrapper::after { content: ''; position: absolute; top: 0; width: 30px; height: 100%; z-index: 2; pointer-events: none; }
+.date-scroller-wrapper::before { left: -24px; background: linear-gradient(to right, var(--hm-white) 20%, transparent); }
+.date-scroller-wrapper::after { right: -24px; background: linear-gradient(to left, var(--hm-white) 20%, transparent); }
+.date-scroller { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; gap: 8px; padding: 0 calc(50% - 30px); }
+.date-scroller::-webkit-scrollbar { display: none; } 
+.date-item { flex: 0 0 auto; width: 60px; height: 70px; display: flex; flex-direction: column; align-items: center; justify-content: center; scroll-snap-align: center; border: 1px solid transparent; color: var(--hm-gray-text); cursor: pointer; transition: all 0.2s; }
+.date-item.active { border: 1px solid var(--hm-black); color: var(--hm-black); background: var(--hm-white); }
+.date-item.disabled { opacity: 0.2; cursor: default; pointer-events: none; }
+.date-item-day { font-size: 0.65rem; font-weight: 600; letter-spacing: 1.5px; margin-bottom: 4px; }
+.date-item-num { font-size: 1.2rem; font-weight: 700; }
+
+/* --- Filter Controls --- */
+.filter-controls { display: flex; border-bottom: 1px solid var(--hm-gray-border); margin-bottom: 24px; }
+.filter-btn { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 0.75rem; font-weight: 600; letter-spacing: 1px; color: var(--hm-gray-text); cursor: pointer; position: relative; transition: color 0.2s; }
+.filter-btn.active { color: var(--hm-black); }
+.filter-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background-color: var(--hm-black); }
+
+/* --- Analytics Controls & Chart --- */
+.analytics-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.analytics-filter { flex: 1; min-width: 65px; border: 1px solid var(--hm-black); background: transparent; padding: 10px 4px; font-size: 0.65rem; font-weight: 600; letter-spacing: 1px; cursor: pointer; text-align: center; color: var(--hm-black); transition: all 0.2s; }
+.analytics-filter.active { background: var(--hm-black); color: var(--hm-white); }
+.custom-range-container { display: none; gap: 8px; margin-bottom: 16px; }
+.custom-range-container.active { display: flex; }
+.chart-container { width: 100%; height: 220px; position: relative; margin-top: 16px; }
+
+/* --- Habit Cards (Home, Edit, Analytics) --- */
+.empty-state { text-align: center; color: var(--hm-gray-text); font-size: 0.8rem; letter-spacing: 1px; margin-top: 40px; padding: 20px; border: 1px dashed var(--hm-gray-border); }
+.habit-card, .edit-habit-card { background: var(--hm-white); border: 1px solid var(--hm-black); padding: 16px 20px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; }
+.habit-card:active, .edit-habit-card:active { transform: scale(0.98); }
+.habit-info h3, .edit-info h3 { font-size: 1rem; font-weight: 600; letter-spacing: 1px; }
+
+.status-btn { background: transparent; border: 1px solid var(--hm-gray-border); padding: 8px 12px; font-size: 0.7rem; font-weight: 600; letter-spacing: 1px; color: var(--hm-gray-text); pointer-events: none; min-width: 100px; text-align: center; }
+.status-btn.COMPLETED { background: var(--hm-black); color: var(--hm-white); border-color: var(--hm-black); }
+.status-btn.SKIPPED { background: var(--hm-gray-light); color: var(--hm-gray-text); border-color: var(--hm-gray-border); text-decoration: line-through; }
+.edit-indicator { font-size: 1.5rem; color: var(--hm-black); }
+
+.edit-info p { font-size: 0.7rem; letter-spacing: 1px; color: var(--hm-gray-text); margin-top: 8px; text-transform: uppercase; }
+.fab-add-habit { position: absolute; bottom: calc(var(--nav-height) + 20px); left: 24px; right: 24px; width: calc(100% - 48px); background: var(--hm-black); color: var(--hm-white); border: none; padding: 16px; font-size: 0.85rem; font-weight: 600; letter-spacing: 2px; cursor: pointer; }
+
+/* --- Account Tab --- */
+.profile-section { text-align: center; padding: 40px 0; border-bottom: 1px solid var(--hm-black); margin-bottom: 40px; }
+.avatar { font-size: 4rem; color: var(--hm-black); margin-bottom: 16px; }
+.profile-section h2 { font-size: 1.2rem; letter-spacing: 2px; text-transform: uppercase;}
+.btn-logout { width: 100%; padding: 16px; background: transparent; color: var(--hm-red); border: 1px solid var(--hm-red); font-weight: 600; font-size: 0.85rem; letter-spacing: 2px; cursor: pointer; }
+
+/* --- Bottom Navigation --- */
+.bottom-nav { position: absolute; bottom: 0; width: 100%; height: var(--nav-height); background: var(--hm-white); display: flex; justify-content: space-around; align-items: center; border-top: 1px solid var(--hm-gray-border); padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
+.nav-item { background: none; border: none; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--hm-gray-text); cursor: pointer; width: 25%; transition: color 0.2s; }
+.nav-item i { font-size: 1.4rem; }
+.nav-item span { font-size: 0.65rem; font-weight: 600; letter-spacing: 1px; }
+.nav-item.active { color: var(--hm-black); }
+
+/* --- Bottom Sheets General --- */
+.sheet-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.4); z-index: 90; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+.sheet-overlay.active { opacity: 1; pointer-events: auto; }
+.bottom-sheet { position: absolute; bottom: -85%; left: 0; width: 100%; background: var(--hm-white); z-index: 100; border-top: 1px solid var(--hm-black); transition: bottom 0.4s cubic-bezier(0.16, 1, 0.3, 1); display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom); }
+.bottom-sheet.active { bottom: 0; }
+.sheet-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 24px; border-bottom: 1px solid var(--hm-gray-border); }
+.sheet-header h3 { font-size: 1.2rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+.sheet-subtitle { font-size: 0.75rem; color: var(--hm-gray-text); letter-spacing: 1px; margin-top: 8px; }
+.btn-close-sheet { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--hm-black); }
+.sheet-content { padding: 24px; display: flex; flex-direction: column; gap: 12px; flex: 1; overflow-y: auto; }
+.sheet-action-btn { width: 100%; padding: 18px; font-size: 0.85rem; font-weight: 600; letter-spacing: 2px; cursor: pointer; border: 1px solid var(--hm-black); text-align: center; }
+.btn-mark-done { background: var(--hm-black); color: var(--hm-white); }
+.btn-mark-skip { background: transparent; color: var(--hm-black); }
+
+/* --- Forms --- */
+.form-row { display: flex; gap: 16px; width: 100%; }
+.form-group { flex: 1; display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.hm-label { font-size: 0.75rem; font-weight: 600; letter-spacing: 1.5px; color: var(--hm-black); }
+.hm-input { width: 100%; padding: 14px 12px; border: 1px solid var(--hm-gray-border); background: transparent; font-size: 0.85rem; font-weight: 500; letter-spacing: 1px; color: var(--hm-black); outline: none; border-radius: 0; transition: border-color 0.2s; text-transform: uppercase; }
+.hm-input:focus { border-color: var(--hm-black); }
+
+/* --- Custom Drag Slider UI --- */
+.slider-control { border: 1px solid var(--hm-black); padding: 20px; margin-bottom: 12px; }
+.slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.slider-label { font-size: 0.75rem; font-weight: 600; letter-spacing: 2px; color: var(--hm-gray-text); }
+#sheet-current-progress { font-size: 1.4rem; font-weight: 700; letter-spacing: 2px; color: var(--hm-black); }
+.hm-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; background: var(--hm-gray-border); outline: none; cursor: pointer; }
+.hm-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 32px; background: var(--hm-black); cursor: grab; border-radius: 0; }
