@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Habit Tracker - Editorial Edition</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        
+        <main id="tab-home" class="tab-content active">
+            <header class="hm-header">
+                <div class="date-scroller-wrapper">
+                    <div class="date-scroller" id="date-scroller">
+                        </div>
+                </div>
+                <p class="subtitle" id="home-subtitle">DAILY HABITS</p>
+            </header>
+
+            <div class="filter-controls">
+                <button class="filter-btn active" data-filter="TODO">TO-DO</button>
+                <button class="filter-btn" data-filter="COMPLETED">DONE</button>
+                <button class="filter-btn" data-filter="SKIPPED">SKIPPED</button>
+            </div>
+
+            <div class="habit-list" id="home-habit-list">
+                </div>
+        </main>
+
+        <main id="tab-edit" class="tab-content">
+            <header class="hm-header">
+                <h2>MANAGE HABITS</h2>
+            </header>
+
+            <div class="habit-list" id="edit-habit-list">
+                </div>
+
+            <button class="fab-add-habit" id="btn-fab-add">
+                ADD NEW HABIT
+            </button>
+        </main>
+
+        <main id="tab-analytics" class="tab-content">
+            <header class="hm-header">
+                <h2>PERFORMANCE</h2>
+                <p class="subtitle">SELECT A HABIT TO VIEW DATA</p>
+            </header>
+
+            <div class="habit-list" id="analytics-habit-list">
+                </div>
+        </main>
+
+        <main id="tab-account" class="tab-content">
+            <div class="profile-section">
+                <div class="avatar">
+                    <i class="ph-thin ph-user"></i>
+                </div>
+                <h2>JANE DOE</h2>
+            </div>
+
+            <button class="btn-logout">LOG OUT</button>
+        </main>
+
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-target="tab-home">
+                <i class="ph ph-house"></i>
+                <span>HOME</span>
+            </button>
+            <button class="nav-item" data-target="tab-edit">
+                <i class="ph ph-sliders-horizontal"></i>
+                <span>MANAGE</span>
+            </button>
+            <button class="nav-item" data-target="tab-analytics">
+                <i class="ph ph-chart-line-up"></i>
+                <span>DATA</span>
+            </button>
+            <button class="nav-item" data-target="tab-account">
+                <i class="ph ph-user"></i>
+                <span>ACCOUNT</span>
+            </button>
+        </nav>
+
+        <div class="sheet-overlay" id="sheet-overlay"></div>
+
+        <div class="bottom-sheet" id="status-sheet">
+            <div class="sheet-header">
+                <div>
+                    <h3 id="sheet-title">HABIT NAME</h3>
+                    <p id="sheet-target" class="sheet-subtitle">DAILY GOAL</p>
+                </div>
+                <button class="btn-close-sheet" id="btn-close-status"><i class="ph-thin ph-x"></i></button>
+            </div>
+            
+            <div class="sheet-content">
+                <div class="slider-control">
+                    <div class="slider-header">
+                        <span class="slider-label">PROGRESS</span>
+                        <span id="sheet-current-progress">0/0</span>
+                    </div>
+                    <input type="range" id="progress-slider" class="hm-slider" min="0" max="10" value="0">
+                </div>
+
+                <button class="sheet-action-btn btn-mark-done" id="btn-save-progress">SAVE PROGRESS</button>
+                <div class="form-row" style="margin-top: 8px;">
+                    <button class="sheet-action-btn btn-mark-skip" id="btn-mark-done" style="margin-top: 0; border-color: var(--hm-black);">MARK DONE</button>
+                    <button class="sheet-action-btn btn-mark-skip" id="btn-mark-skip" style="margin-top: 0;">MARK SKIPPED</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bottom-sheet" id="edit-sheet">
+            <div class="sheet-header">
+                <div>
+                    <h3 id="edit-sheet-title">EDIT HABIT</h3>
+                    <p class="sheet-subtitle">HABIT DETAILS</p>
+                </div>
+                <button class="btn-close-sheet" id="btn-close-edit"><i class="ph-thin ph-x"></i></button>
+            </div>
+            
+            <div class="sheet-content">
+                <div class="form-group">
+                    <label class="hm-label">HABIT NAME</label>
+                    <input type="text" id="edit-name-input" class="hm-input" placeholder="E.G. DRINK WATER" autocomplete="off">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="hm-label">DAILY GOAL</label>
+                        <input type="number" id="edit-target-input" class="hm-input" min="1" placeholder="15">
+                    </div>
+                    <div class="form-group">
+                        <label class="hm-label">UNIT</label>
+                        <input type="text" id="edit-unit-input" class="hm-input" placeholder="E.G. MINUTES, ML" autocomplete="off">
+                    </div>
+                </div>
+
+                <button class="sheet-action-btn btn-mark-done" id="btn-save-habit">SAVE HABIT</button>
+            </div>
+        </div>
+
+        <div class="bottom-sheet" id="analytics-sheet">
+            <div class="sheet-header">
+                <div>
+                    <h3 id="analytics-sheet-title">HABIT NAME</h3>
+                    <p class="sheet-subtitle">COMPLETION RATE (%)</p>
+                </div>
+                <button class="btn-close-sheet" id="btn-close-analytics"><i class="ph-thin ph-x"></i></button>
+            </div>
+            
+            <div class="sheet-content">
+                <div class="analytics-controls">
+                    <button class="analytics-filter active" data-range="7days">7 DAYS</button>
+                    <button class="analytics-filter" data-range="week">THIS WEEK</button>
+                    <button class="analytics-filter" data-range="month">THIS MONTH</button>
+                    <button class="analytics-filter" data-range="custom">CUSTOM</button>
+                </div>
+
+                <div class="custom-range-container" id="custom-range-container">
+                    <input type="number" id="custom-days-input" class="hm-input" placeholder="ENTER DAYS" min="1">
+                    <button class="sheet-action-btn btn-mark-done" id="btn-apply-custom" style="padding: 12px; font-size: 0.7rem; width: auto;">APPLY</button>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="analytics-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
