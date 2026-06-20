@@ -3,21 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Habit Tracker - Editorial Edition</title>
+    <title>MEZAMERU</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
+    
+    <!-- ================= LOGIN SCREEN ================= -->
+    <div id="login-screen" class="login-screen active">
+        <div class="login-content brutal-box">
+            <h1>MEZAMERU</h1>
+            <p class="mono-text">SIGN IN TO ACCESS YOUR HABITS</p>
+            
+            <div id="g_id_onload"
+                 data-client_id="1057081070342-87s2apeim9b3qn1a4kol0p7l2gbttp3k.apps.googleusercontent.com"
+                 data-context="signin"
+                 data-ux_mode="popup"
+                 data-callback="handleCredentialResponse"
+                 data-auto_prompt="false">
+            </div>
+            <div class="g_id_signin brutal-signin" data-type="standard" data-theme="filled_black" data-size="large"></div>
+            
+            <p id="login-status" class="mono-text blink" style="display: none;">[ SYNCING WITH CLOUD ]</p>
+        </div>
+    </div>
+
     <div class="app-container">
         
+        <!-- ================= TAB 1: HOME ================= -->
         <main id="tab-home" class="tab-content active">
-            <header class="hm-header">
+            <header class="brutal-header">
                 <div class="date-scroller-wrapper">
-                    <div class="date-scroller" id="date-scroller">
-                        </div>
+                    <div class="date-scroller" id="date-scroller"></div>
                 </div>
-                <p class="subtitle" id="home-subtitle">DAILY HABITS</p>
+                <h2 class="section-title" id="home-subtitle">DAILY HABITS</h2>
             </header>
 
             <div class="filter-controls">
@@ -26,144 +48,150 @@
                 <button class="filter-btn" data-filter="SKIPPED">SKIPPED</button>
             </div>
 
-            <div class="habit-list" id="home-habit-list">
-                </div>
+            <div class="habit-list" id="home-habit-list"></div>
         </main>
 
+        <!-- ================= TAB 2: EDIT HABITS ================= -->
         <main id="tab-edit" class="tab-content">
-            <header class="hm-header">
-                <h2>MANAGE HABITS</h2>
+            <header class="brutal-header">
+                <h2 class="section-title">MANAGE HABITS</h2>
             </header>
 
-            <div class="habit-list" id="edit-habit-list">
-                </div>
+            <div class="habit-list" id="edit-habit-list"></div>
 
-            <button class="fab-add-habit" id="btn-fab-add">
-                ADD NEW HABIT
+            <button class="brutal-btn fab-add-habit" id="btn-fab-add">
+                [+] ADD NEW HABIT
             </button>
         </main>
 
+        <!-- ================= TAB 3: ANALYTICS ================= -->
         <main id="tab-analytics" class="tab-content">
-            <header class="hm-header">
-                <h2>PERFORMANCE</h2>
-                <p class="subtitle">SELECT A HABIT TO VIEW DATA</p>
+            <header class="brutal-header">
+                <h2 class="section-title">ANALYTICS</h2>
+                <p class="mono-text">SELECT A HABIT TO VIEW DATA</p>
             </header>
 
-            <div class="habit-list" id="analytics-habit-list">
-                </div>
+            <div class="habit-list" id="analytics-habit-list"></div>
         </main>
 
+        <!-- ================= TAB 4: ACCOUNT ================= -->
         <main id="tab-account" class="tab-content">
-            <div class="profile-section">
+            <div class="profile-section brutal-box">
                 <div class="avatar">
-                    <i class="ph-thin ph-user"></i>
+                    <i class="ph-bold ph-user"></i>
                 </div>
-                <h2>JANE DOE</h2>
+                <h2>PROFILE</h2>
+                <p class="mono-text highlight">CLOUD SYNC : ACTIVE</p>
             </div>
 
-            <button class="btn-logout">LOG OUT</button>
+            <button class="brutal-btn btn-logout" onclick="location.reload()">LOG OUT</button>
         </main>
 
+        <!-- ================= BOTTOM NAVIGATION ================= -->
         <nav class="bottom-nav">
             <button class="nav-item active" data-target="tab-home">
-                <i class="ph ph-house"></i>
+                <i class="ph-bold ph-house"></i>
                 <span>HOME</span>
             </button>
             <button class="nav-item" data-target="tab-edit">
-                <i class="ph ph-sliders-horizontal"></i>
+                <i class="ph-bold ph-sliders-horizontal"></i>
                 <span>MANAGE</span>
             </button>
             <button class="nav-item" data-target="tab-analytics">
-                <i class="ph ph-chart-line-up"></i>
+                <i class="ph-bold ph-chart-line-up"></i>
                 <span>DATA</span>
             </button>
             <button class="nav-item" data-target="tab-account">
-                <i class="ph ph-user"></i>
+                <i class="ph-bold ph-user"></i>
                 <span>ACCOUNT</span>
             </button>
         </nav>
 
+        <!-- ================= OVERLAY ================= -->
         <div class="sheet-overlay" id="sheet-overlay"></div>
 
-        <div class="bottom-sheet" id="status-sheet">
+        <!-- ================= SHEET 1: HOME STATUS UPDATE ================= -->
+        <div class="bottom-sheet brutal-box" id="status-sheet">
             <div class="sheet-header">
                 <div>
                     <h3 id="sheet-title">HABIT NAME</h3>
-                    <p id="sheet-target" class="sheet-subtitle">DAILY GOAL</p>
+                    <p id="sheet-target" class="mono-text">DAILY GOAL</p>
                 </div>
-                <button class="btn-close-sheet" id="btn-close-status"><i class="ph-thin ph-x"></i></button>
+                <button class="btn-close-sheet" id="btn-close-status">[X]</button>
             </div>
             
             <div class="sheet-content">
-                <div class="slider-control">
+                <div class="slider-control brutal-box">
                     <div class="slider-header">
-                        <span class="slider-label">PROGRESS</span>
-                        <span id="sheet-current-progress">0/0</span>
+                        <span class="mono-text">PROGRESS</span>
+                        <span id="sheet-current-progress" class="huge-text">0/0</span>
                     </div>
-                    <input type="range" id="progress-slider" class="hm-slider" min="0" max="10" value="0">
+                    <input type="range" id="progress-slider" class="brutal-slider" min="0" max="10" value="0">
                 </div>
 
-                <button class="sheet-action-btn btn-mark-done" id="btn-save-progress">SAVE PROGRESS</button>
-                <div class="form-row" style="margin-top: 8px;">
-                    <button class="sheet-action-btn btn-mark-skip" id="btn-mark-done" style="margin-top: 0; border-color: var(--hm-black);">MARK DONE</button>
-                    <button class="sheet-action-btn btn-mark-skip" id="btn-mark-skip" style="margin-top: 0;">MARK SKIPPED</button>
+                <button class="brutal-btn action-btn" id="btn-save-progress">SAVE PROGRESS</button>
+                <div class="form-row">
+                    <button class="brutal-btn action-btn" id="btn-mark-done">MARK DONE</button>
+                    <button class="brutal-btn action-btn outline-btn" id="btn-mark-skip">MARK SKIPPED</button>
                 </div>
             </div>
         </div>
 
-        <div class="bottom-sheet" id="edit-sheet">
+        <!-- ================= SHEET 2: EDIT / ADD HABIT ================= -->
+        <div class="bottom-sheet brutal-box" id="edit-sheet">
             <div class="sheet-header">
                 <div>
                     <h3 id="edit-sheet-title">EDIT HABIT</h3>
-                    <p class="sheet-subtitle">HABIT DETAILS</p>
+                    <p class="mono-text">HABIT DETAILS</p>
                 </div>
-                <button class="btn-close-sheet" id="btn-close-edit"><i class="ph-thin ph-x"></i></button>
+                <button class="btn-close-sheet" id="btn-close-edit">[X]</button>
             </div>
             
             <div class="sheet-content">
                 <div class="form-group">
-                    <label class="hm-label">HABIT NAME</label>
-                    <input type="text" id="edit-name-input" class="hm-input" placeholder="E.G. DRINK WATER" autocomplete="off">
+                    <label class="mono-text">HABIT NAME</label>
+                    <input type="text" id="edit-name-input" class="brutal-input" placeholder="E.G. DRINK WATER" autocomplete="off">
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="hm-label">DAILY GOAL</label>
-                        <input type="number" id="edit-target-input" class="hm-input" min="1" placeholder="15">
+                        <label class="mono-text">DAILY GOAL</label>
+                        <input type="number" id="edit-target-input" class="brutal-input" min="1" placeholder="15">
                     </div>
                     <div class="form-group">
-                        <label class="hm-label">UNIT</label>
-                        <input type="text" id="edit-unit-input" class="hm-input" placeholder="E.G. MINUTES, ML" autocomplete="off">
+                        <label class="mono-text">UNIT</label>
+                        <input type="text" id="edit-unit-input" class="brutal-input" placeholder="E.G. ML" autocomplete="off">
                     </div>
                 </div>
 
-                <button class="sheet-action-btn btn-mark-done" id="btn-save-habit">SAVE HABIT</button>
+                <button class="brutal-btn action-btn" id="btn-save-habit">SAVE HABIT</button>
             </div>
         </div>
 
-        <div class="bottom-sheet" id="analytics-sheet">
+        <!-- ================= SHEET 3: ANALYTICS GRAPH ================= -->
+        <div class="bottom-sheet brutal-box" id="analytics-sheet">
             <div class="sheet-header">
                 <div>
                     <h3 id="analytics-sheet-title">HABIT NAME</h3>
-                    <p class="sheet-subtitle">COMPLETION RATE (%)</p>
+                    <p class="mono-text">COMPLETION RATE %</p>
                 </div>
-                <button class="btn-close-sheet" id="btn-close-analytics"><i class="ph-thin ph-x"></i></button>
+                <button class="btn-close-sheet" id="btn-close-analytics">[X]</button>
             </div>
             
             <div class="sheet-content">
                 <div class="analytics-controls">
-                    <button class="analytics-filter active" data-range="7days">7 DAYS</button>
-                    <button class="analytics-filter" data-range="week">THIS WEEK</button>
-                    <button class="analytics-filter" data-range="month">THIS MONTH</button>
-                    <button class="analytics-filter" data-range="custom">CUSTOM</button>
+                    <button class="brutal-btn filter-btn-small active" data-range="7days">7 DAYS</button>
+                    <button class="brutal-btn filter-btn-small" data-range="week">THIS WEEK</button>
+                    <button class="brutal-btn filter-btn-small" data-range="month">THIS MONTH</button>
+                    <button class="brutal-btn filter-btn-small" data-range="custom">CUSTOM</button>
                 </div>
 
                 <div class="custom-range-container" id="custom-range-container">
-                    <input type="number" id="custom-days-input" class="hm-input" placeholder="ENTER DAYS" min="1">
-                    <button class="sheet-action-btn btn-mark-done" id="btn-apply-custom" style="padding: 12px; font-size: 0.7rem; width: auto;">APPLY</button>
+                    <input type="number" id="custom-days-input" class="brutal-input" placeholder="DAYS" min="1">
+                    <button class="brutal-btn" id="btn-apply-custom">APPLY</button>
                 </div>
 
-                <div class="chart-container">
+                <div class="chart-container brutal-box">
                     <canvas id="analytics-chart"></canvas>
                 </div>
             </div>
