@@ -1,7 +1,13 @@
 // ==========================================
 // GOOGLE DRIVE API SYNC LOGIC
 // ==========================================
-let driveToken = null;
+
+const CLIENT_ID = '1057081070342-87s2apeim9b3qn1a4kol0p7l2gbttp3k.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
+
+let localToken = localStorage.getItem('mezameru_drive_token');
+let driveToken = (localToken === 'null' || localToken === 'undefined' || !localToken) ? null : localToken;
+
 const FILE_NAME = 'mezameru_data.json';
 let driveFileId = null;
 
@@ -11,11 +17,18 @@ const DEFAULT_STATE = {
 
 let APP_STATE = JSON.parse(localStorage.getItem('mezameru_local_state')) || DEFAULT_STATE;
 
-function handleCredentialResponse(response) {
-    driveToken = response.credential; 
-    document.querySelector('.g_id_signin').style.display = 'none';
-    document.getElementById('login-status').style.display = 'block';
-    syncWithDrive();
+function logoutUser() {
+    driveToken = null;
+    localStorage.removeItem('mezameru_drive_token');
+    
+    const btnLogin = document.getElementById('btn-google-login');
+    if (btnLogin) btnLogin.style.display = 'block';
+    
+    const loginStatus = document.getElementById('login-status');
+    if (loginStatus) loginStatus.style.display = 'none';
+
+    const loginScreen = document.getElementById('login-screen');
+    if(loginScreen) loginScreen.classList.add('active');
 }
 
 async function syncWithDrive() {
@@ -25,7 +38,10 @@ async function syncWithDrive() {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${driveToken}` }
         });
+        
+        if (searchRes.status === 401) throw new Error("TOKEN_EXPIRED");
         if (!searchRes.ok) throw new Error("API ERROR");
+        
         const searchData = await searchRes.json();
 
         if (searchData.files && searchData.files.length > 0) {
@@ -40,12 +56,14 @@ async function syncWithDrive() {
             await uploadToDrive(true);
         }
 
-        document.getElementById('login-screen').classList.remove('active');
+        const loginScreen = document.getElementById('login-screen');
+        if(loginScreen) loginScreen.classList.remove('active');
+
         saveLocal(); 
         reRenderAll();
     } catch (error) {
         console.error('SYNC_FAIL:', error);
-        document.getElementById('login-screen').classList.remove('active');
+        if (error.message === "TOKEN_EXPIRED") logoutUser();
         reRenderAll();
     }
 }
@@ -66,12 +84,35 @@ async function uploadToDrive(isNew = false) {
             method = 'PATCH';
         }
         const res = await fetch(url, { method: method, headers: { 'Authorization': `Bearer ${driveToken}` }, body: form });
+        
+        if (res.status === 401) {
+            logoutUser();
+            return;
+        }
+        
         const data = await res.json();
         if (isNew) driveFileId = data.id;
     } catch (error) { console.error("UPLOAD_FAIL:", error); }
 }
 
+function pruneOldData() {
+    const today = new Date();
+    const cutoffDate = new Date(today);
+    cutoffDate.setDate(today.getDate() - 99);
+    
+    const cutoffKey = formatDateKey(cutoffDate); 
+
+    APP_STATE.habits.forEach(habit => {
+        Object.keys(habit.history).forEach(dateKey => {
+            if (dateKey < cutoffKey) {
+                delete habit.history[dateKey];
+            }
+        });
+    });
+}
+
 function saveState() {
+    pruneOldData(); 
     saveLocal();
     if (driveToken) uploadToDrive(false);
 }
@@ -89,6 +130,12 @@ const formatDateKey = (dateObj) => {
     const m = String(dateObj.getMonth() + 1).padStart(2, '0');
     const d = String(dateObj.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
+};
+
+const formatDisplayDate = (dateKey) => {
+    const [y, m, d] = dateKey.split('-');
+    const months = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+    return `${parseInt(d)} ${months[parseInt(m) - 1]} ${y}`;
 };
 
 const getHabitRecord = (habitId, dateKey) => {
@@ -164,41 +211,107 @@ const reRenderAll = () => {
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- Date Scroller ---
+    // --- OAUTH2 LOGIN INITIALIZATION ---
+    const btnLogin = document.getElementById('btn-google-login');
+    if (btnLogin) {
+        btnLogin.addEventListener('click', () => {
+            const tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: (tokenResponse) => {
+                    if (tokenResponse && tokenResponse.access_token) {
+                        driveToken = tokenResponse.access_token;
+                        localStorage.setItem('mezameru_drive_token', driveToken);
+                        
+                        btnLogin.style.display = 'none';
+                        const loginStatus = document.getElementById('login-status');
+                        if (loginStatus) loginStatus.style.display = 'block';
+                        
+                        syncWithDrive();
+                    }
+                }
+            });
+            tokenClient.requestAccessToken();
+        });
+    }
+
+    // --- CHECK LOGIN ON LOAD ---
+    const loginScreen = document.getElementById('login-screen');
+    if (driveToken) {
+        if(loginScreen) loginScreen.classList.remove('active');
+        syncWithDrive();
+    } else {
+        if(loginScreen) loginScreen.classList.add('active');
+    }
+
+    // --- ACCOUNT LOGOUT BUTTON ---
+    const logoutBtn = document.getElementById('btn-logout');
+    if(logoutBtn) {
+        logoutBtn.addEventListener('click', logoutUser);
+    }
+
+    // --- HARD-STOP DATE SCOLLER ---
     const dateScroller = document.getElementById('date-scroller');
+    if (dateScroller) dateScroller.innerHTML = ''; 
+    
     const subtitle = document.getElementById('home-subtitle');
     const today = new Date(); 
     const dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     let activeDateElement = null;
 
-    for (let i = -19; i <= 4; i++) {
+    for (let i = -15; i <= 0; i++) {
         const targetDate = new Date(today);
         targetDate.setDate(today.getDate() + i);
         const isToday = i === 0;
-        const isClickable = i >= -15 && i <= 0;
         const targetDateKey = formatDateKey(targetDate);
         
         const dateItem = document.createElement('div');
-        dateItem.className = `date-item ${isToday ? 'active' : ''} ${!isClickable ? 'disabled' : ''}`;
+        dateItem.className = `date-item ${isToday ? 'active' : ''}`; 
         dateItem.innerHTML = `<span class="date-item-day">${dayNames[targetDate.getDay()]}</span><span class="date-item-num">${targetDate.getDate()}</span>`;
-        dateScroller.appendChild(dateItem);
+        
+        if (i === -15) {
+            for (let k = 1; k <= 3; k++) {
+                const d = new Date(targetDate);
+                d.setDate(d.getDate() - k);
+                const dummy = document.createElement('div');
+                dummy.className = 'dummy-item';
+                dummy.style.left = `calc(${k * -82}px - 4px)`; 
+                dummy.style.top = '-4px';
+                dummy.innerHTML = `<span class="date-item-day">${dayNames[d.getDay()]}</span><span class="date-item-num">${d.getDate()}</span>`;
+                dateItem.appendChild(dummy);
+            }
+        }
+
+        if (i === 0) {
+            for (let k = 1; k <= 3; k++) {
+                const d = new Date(targetDate);
+                d.setDate(d.getDate() + k);
+                const dummy = document.createElement('div');
+                dummy.className = 'dummy-item';
+                dummy.style.right = `calc(${k * -82}px - 4px)`; 
+                dummy.style.top = '-4px';
+                dummy.innerHTML = `<span class="date-item-day">${dayNames[d.getDay()]}</span><span class="date-item-num">${d.getDate()}</span>`;
+                dateItem.appendChild(dummy);
+            }
+        }
+
+        if (dateScroller) dateScroller.appendChild(dateItem);
         
         if (isToday) {
             activeDateElement = dateItem;
             if (!APP_STATE.selectedDate) APP_STATE.selectedDate = targetDateKey; 
-            subtitle.innerText = `HABITS: TODAY`;
+            if (subtitle) subtitle.innerText = `HABITS: TODAY`;
         }
 
-        if (isClickable) {
-            dateItem.addEventListener('click', () => {
-                document.querySelectorAll('.date-item').forEach(el => el.classList.remove('active'));
-                dateItem.classList.add('active');
-                dateItem.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-                APP_STATE.selectedDate = targetDateKey;
-                subtitle.innerText = i === 0 ? `HABITS: TODAY` : `HABITS: ${targetDateKey}`;
-                renderHomeTab(); saveState();
-            });
-        }
+        dateItem.addEventListener('click', () => {
+            document.querySelectorAll('.date-item').forEach(el => el.classList.remove('active'));
+            dateItem.classList.add('active');
+            dateItem.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            APP_STATE.selectedDate = targetDateKey;
+            
+            if (subtitle) subtitle.innerText = i === 0 ? `HABITS: TODAY` : `HABITS: ${formatDisplayDate(targetDateKey)}`;
+            renderHomeTab(); saveState();
+        });
     }
 
     if (activeDateElement) setTimeout(() => activeDateElement.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }), 100); 
@@ -240,10 +353,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (analyticsChart) analyticsChart.destroy();
         
+        const chartCanvas = document.getElementById('analytics-chart');
+        if (!chartCanvas) return;
+
         Chart.defaults.font.family = '"Courier New", Courier, monospace';
         Chart.defaults.font.weight = 'bold';
         
-        analyticsChart = new Chart(document.getElementById('analytics-chart').getContext('2d'), {
+        analyticsChart = new Chart(chartCanvas.getContext('2d'), {
             type: 'line',
             data: { 
                 labels: labels, 
@@ -294,122 +410,197 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const overlay = document.getElementById('sheet-overlay');
-    const closeAllSheets = () => { overlay.classList.remove('active'); document.querySelectorAll('.bottom-sheet').forEach(s => s.classList.remove('active')); currentAnalyticsHabitId = null; };
-    overlay.addEventListener('click', closeAllSheets);
+    const closeAllSheets = () => { if(overlay) overlay.classList.remove('active'); document.querySelectorAll('.bottom-sheet').forEach(s => s.classList.remove('active')); currentAnalyticsHabitId = null; };
+    if(overlay) overlay.addEventListener('click', closeAllSheets);
     document.querySelectorAll('.btn-close-sheet').forEach(btn => btn.addEventListener('click', closeAllSheets));
 
-    // --- Sheet logic (Home/Status) ---
+    // --- HOME SHEET: SMART PRECISION PROGRESS ---
     let trackingHabitId = null;
     let tempCurrentVal = 0;
     const progressSlider = document.getElementById('progress-slider');
+    const progressInput = document.getElementById('sheet-current-input');
+    const progressMaxDisplay = document.getElementById('sheet-max-display');
 
-    homeListContainer.addEventListener('click', (e) => {
-        const card = e.target.closest('.habit-card');
-        if (!card) return;
-        trackingHabitId = card.getAttribute('data-id');
-        const habit = APP_STATE.habits.find(h => h.id === trackingHabitId);
-        const record = getHabitRecord(trackingHabitId, APP_STATE.selectedDate);
-        tempCurrentVal = record.current;
+    if (homeListContainer) {
+        homeListContainer.addEventListener('click', (e) => {
+            const card = e.target.closest('.habit-card');
+            if (!card) return;
+            trackingHabitId = card.getAttribute('data-id');
+            const habit = APP_STATE.habits.find(h => h.id === trackingHabitId);
+            const record = getHabitRecord(trackingHabitId, APP_STATE.selectedDate);
+            tempCurrentVal = record.current;
 
-        document.getElementById('sheet-title').innerText = habit.name;
-        document.getElementById('sheet-target').innerText = `GOAL: ${habit.max} ${habit.unit}`;
-        document.getElementById('sheet-current-progress').innerText = `${tempCurrentVal}/${habit.max}`;
-        progressSlider.min = 0; progressSlider.max = habit.max; progressSlider.value = tempCurrentVal;
-        
-        document.getElementById('btn-mark-done').innerText = record.status === 'COMPLETED' ? 'MARK NOT DONE' : 'MARK DONE';
-        document.getElementById('btn-mark-skip').innerText = record.status === 'SKIPPED' ? 'UNSKIP' : 'MARK SKIPPED';
-        
-        overlay.classList.add('active'); document.getElementById('status-sheet').classList.add('active');
-    });
+            document.getElementById('sheet-title').innerText = habit.name;
+            document.getElementById('sheet-target').innerText = `GOAL: ${habit.max} ${habit.unit}`;
+            
+            // Set up our smart precision group
+            if(progressInput) progressInput.value = tempCurrentVal;
+            if(progressMaxDisplay) progressMaxDisplay.innerText = `/${habit.max}`;
+            if(progressSlider) { 
+                progressSlider.min = 0; 
+                progressSlider.max = habit.max; 
+                progressSlider.value = tempCurrentVal; 
+            }
+            
+            document.getElementById('btn-mark-done').innerText = record.status === 'COMPLETED' ? 'MARK NOT DONE' : 'MARK DONE';
+            document.getElementById('btn-mark-skip').innerText = record.status === 'SKIPPED' ? 'UNSKIP' : 'MARK SKIPPED';
+            
+            if(overlay) overlay.classList.add('active'); 
+            document.getElementById('status-sheet').classList.add('active');
+        });
+    }
 
-    progressSlider.addEventListener('input', (e) => {
-        const habit = APP_STATE.habits.find(h => h.id === trackingHabitId);
-        tempCurrentVal = parseInt(e.target.value);
-        document.getElementById('sheet-current-progress').innerText = `${tempCurrentVal}/${habit.max}`;
-    });
+    // Slider updates text box
+    if (progressSlider) {
+        progressSlider.addEventListener('input', (e) => {
+            tempCurrentVal = parseInt(e.target.value);
+            if (progressInput) progressInput.value = tempCurrentVal;
+        });
+    }
 
-    document.getElementById('btn-save-progress').addEventListener('click', () => {
-        const habit = APP_STATE.habits.find(h => h.id === trackingHabitId);
-        const record = getHabitRecord(trackingHabitId, APP_STATE.selectedDate);
-        record.current = tempCurrentVal;
-        record.status = tempCurrentVal >= habit.max ? 'COMPLETED' : 'TODO';
-        closeAllSheets(); renderHomeTab(); saveState();
-    });
+    // Text box updates slider (and clamps to max)
+    if (progressInput) {
+        progressInput.addEventListener('input', (e) => {
+            const habit = APP_STATE.habits.find(h => h.id === trackingHabitId);
+            let val = parseInt(e.target.value) || 0;
+            if (val > habit.max) val = habit.max;
+            if (val < 0) val = 0;
+            
+            tempCurrentVal = val;
+            if (progressSlider) progressSlider.value = tempCurrentVal;
+        });
+    }
 
-    document.getElementById('btn-mark-done').addEventListener('click', () => {
-        const habit = APP_STATE.habits.find(h => h.id === trackingHabitId);
-        const record = getHabitRecord(trackingHabitId, APP_STATE.selectedDate);
-        if (record.status === 'COMPLETED') { record.current = 0; record.status = 'TODO'; } 
-        else { record.current = habit.max; record.status = 'COMPLETED'; }
-        closeAllSheets(); renderHomeTab(); saveState();
-    });
+    const btnSaveProgress = document.getElementById('btn-save-progress');
+    if (btnSaveProgress) {
+        btnSaveProgress.addEventListener('click', () => {
+            const habit = APP_STATE.habits.find(h => h.id === trackingHabitId);
+            const record = getHabitRecord(trackingHabitId, APP_STATE.selectedDate);
+            record.current = tempCurrentVal;
+            record.status = tempCurrentVal >= habit.max ? 'COMPLETED' : 'TODO';
+            closeAllSheets(); renderHomeTab(); saveState();
+        });
+    }
 
-    document.getElementById('btn-mark-skip').addEventListener('click', () => {
-        const record = getHabitRecord(trackingHabitId, APP_STATE.selectedDate);
-        record.status = record.status === 'SKIPPED' ? 'TODO' : 'SKIPPED';
-        closeAllSheets(); renderHomeTab(); saveState();
-    });
+    const btnMarkDone = document.getElementById('btn-mark-done');
+    if (btnMarkDone) {
+        btnMarkDone.addEventListener('click', () => {
+            const habit = APP_STATE.habits.find(h => h.id === trackingHabitId);
+            const record = getHabitRecord(trackingHabitId, APP_STATE.selectedDate);
+            if (record.status === 'COMPLETED') { record.current = 0; record.status = 'TODO'; } 
+            else { record.current = habit.max; record.status = 'COMPLETED'; }
+            closeAllSheets(); renderHomeTab(); saveState();
+        });
+    }
+
+    const btnMarkSkip = document.getElementById('btn-mark-skip');
+    if (btnMarkSkip) {
+        btnMarkSkip.addEventListener('click', () => {
+            const record = getHabitRecord(trackingHabitId, APP_STATE.selectedDate);
+            record.status = record.status === 'SKIPPED' ? 'TODO' : 'SKIPPED';
+            closeAllSheets(); renderHomeTab(); saveState();
+        });
+    }
 
     // --- Sheet logic (Edit/Add) ---
     let editingHabitId = null;
-    document.getElementById('btn-fab-add').addEventListener('click', () => {
-        editingHabitId = null; document.getElementById('edit-sheet-title').innerText = "ADD NEW HABIT";
-        document.getElementById('edit-name-input').value = ''; document.getElementById('edit-target-input').value = ''; document.getElementById('edit-unit-input').value = '';
-        overlay.classList.add('active'); document.getElementById('edit-sheet').classList.add('active');
-    });
+    const btnFabAdd = document.getElementById('btn-fab-add');
+    if (btnFabAdd) {
+        btnFabAdd.addEventListener('click', () => {
+            editingHabitId = null; document.getElementById('edit-sheet-title').innerText = "ADD NEW HABIT";
+            document.getElementById('edit-name-input').value = ''; document.getElementById('edit-target-input').value = ''; document.getElementById('edit-unit-input').value = '';
+            if(overlay) overlay.classList.add('active'); 
+            document.getElementById('edit-sheet').classList.add('active');
+        });
+    }
 
-    editListContainer.addEventListener('click', (e) => {
-        const card = e.target.closest('.edit-habit-card');
-        if (!card) return;
-        editingHabitId = card.getAttribute('data-id');
-        const habit = APP_STATE.habits.find(h => h.id === editingHabitId);
-        document.getElementById('edit-sheet-title').innerText = "EDIT HABIT";
-        document.getElementById('edit-name-input').value = habit.name; document.getElementById('edit-target-input').value = habit.max; document.getElementById('edit-unit-input').value = habit.unit;
-        overlay.classList.add('active'); document.getElementById('edit-sheet').classList.add('active');
-    });
-
-    document.getElementById('btn-save-habit').addEventListener('click', () => {
-        const newName = document.getElementById('edit-name-input').value.trim().toUpperCase() || "NEW HABIT";
-        const newMax = parseInt(document.getElementById('edit-target-input').value) || 1;
-        const newUnit = document.getElementById('edit-unit-input').value.trim().toUpperCase() || "UNITS";
-
-        if (editingHabitId) {
+    if (editListContainer) {
+        editListContainer.addEventListener('click', (e) => {
+            const card = e.target.closest('.edit-habit-card');
+            if (!card) return;
+            editingHabitId = card.getAttribute('data-id');
             const habit = APP_STATE.habits.find(h => h.id === editingHabitId);
-            habit.name = newName; habit.max = newMax; habit.unit = newUnit;
-            Object.keys(habit.history).forEach(date => { if (habit.history[date].current > newMax) habit.history[date].current = newMax; });
-        } else {
-            APP_STATE.habits.push({ id: 'h_' + Date.now(), name: newName, max: newMax, unit: newUnit, history: {} });
-        }
-        closeAllSheets(); reRenderAll(); saveState();
-    });
+            document.getElementById('edit-sheet-title').innerText = "EDIT HABIT";
+            document.getElementById('edit-name-input').value = habit.name; document.getElementById('edit-target-input').value = habit.max; document.getElementById('edit-unit-input').value = habit.unit;
+            if(overlay) overlay.classList.add('active'); 
+            document.getElementById('edit-sheet').classList.add('active');
+        });
+    }
 
-    // --- Sheet logic (Analytics) ---
-    analyticsListContainer.addEventListener('click', (e) => {
-        const card = e.target.closest('.edit-habit-card');
-        if (!card) return;
-        currentAnalyticsHabitId = card.getAttribute('data-id');
-        document.getElementById('analytics-sheet-title').innerText = APP_STATE.habits.find(h => h.id === currentAnalyticsHabitId).name;
-        overlay.classList.add('active'); document.getElementById('analytics-sheet').classList.add('active');
-        setTimeout(renderChart, 50);
-    });
+    const btnSaveHabit = document.getElementById('btn-save-habit');
+    if (btnSaveHabit) {
+        btnSaveHabit.addEventListener('click', () => {
+            const newName = document.getElementById('edit-name-input').value.trim().toUpperCase() || "NEW HABIT";
+            const newMax = parseInt(document.getElementById('edit-target-input').value) || 1;
+            const newUnit = document.getElementById('edit-unit-input').value.trim().toUpperCase() || "UNITS";
+
+            if (editingHabitId) {
+                const habit = APP_STATE.habits.find(h => h.id === editingHabitId);
+                habit.name = newName; habit.max = newMax; habit.unit = newUnit;
+                Object.keys(habit.history).forEach(date => { if (habit.history[date].current > newMax) habit.history[date].current = newMax; });
+            } else {
+                APP_STATE.habits.push({ id: 'h_' + Date.now(), name: newName, max: newMax, unit: newUnit, history: {} });
+            }
+            closeAllSheets(); reRenderAll(); saveState();
+        });
+    }
+
+    // --- ANALYTICS SHEET: VOLUME BAR ---
+    if (analyticsListContainer) {
+        analyticsListContainer.addEventListener('click', (e) => {
+            const card = e.target.closest('.edit-habit-card');
+            if (!card) return;
+            currentAnalyticsHabitId = card.getAttribute('data-id');
+            document.getElementById('analytics-sheet-title').innerText = APP_STATE.habits.find(h => h.id === currentAnalyticsHabitId).name;
+            if(overlay) overlay.classList.add('active'); 
+            document.getElementById('analytics-sheet').classList.add('active');
+            
+            // Sync slider position on open
+            const cSlider = document.getElementById('custom-days-slider');
+            const cDisplay = document.getElementById('custom-days-display');
+            if(cSlider) cSlider.value = APP_STATE.customDays;
+            if(cDisplay) cDisplay.innerText = `${APP_STATE.customDays} DAYS`;
+
+            setTimeout(renderChart, 50);
+        });
+    }
 
     document.querySelectorAll('.filter-btn-small').forEach(btn => {
         if (btn.getAttribute('data-range') === APP_STATE.analyticsRange) {
             document.querySelectorAll('.filter-btn-small').forEach(b => b.classList.remove('active')); btn.classList.add('active');
-            if (APP_STATE.analyticsRange === 'custom') document.getElementById('custom-range-container').classList.add('active');
+            const customRange = document.getElementById('custom-range-container');
+            if (APP_STATE.analyticsRange === 'custom' && customRange) customRange.classList.add('active');
         }
         btn.addEventListener('click', () => {
             document.querySelectorAll('.filter-btn-small').forEach(b => b.classList.remove('active')); btn.classList.add('active');
             APP_STATE.analyticsRange = btn.getAttribute('data-range');
-            if (APP_STATE.analyticsRange === 'custom') document.getElementById('custom-range-container').classList.add('active');
-            else { document.getElementById('custom-range-container').classList.remove('active'); renderChart(); saveState(); }
+            const customRange = document.getElementById('custom-range-container');
+            if (APP_STATE.analyticsRange === 'custom') {
+                if(customRange) customRange.classList.add('active');
+            } else { 
+                if(customRange) customRange.classList.remove('active'); 
+                renderChart(); saveState(); 
+            }
         });
     });
 
-    document.getElementById('btn-apply-custom').addEventListener('click', () => {
-        const val = parseInt(document.getElementById('custom-days-input').value);
-        if (val > 0) { APP_STATE.customDays = val; renderChart(); saveState(); }
-    });
+    // Handle new Volume Bar drag events
+    const customDaysSlider = document.getElementById('custom-days-slider');
+    const customDaysDisplay = document.getElementById('custom-days-display');
+
+    if (customDaysSlider && customDaysDisplay) {
+        // Live update text while dragging
+        customDaysSlider.addEventListener('input', (e) => {
+            customDaysDisplay.innerText = `${e.target.value} DAYS`;
+        });
+        
+        // Save and re-draw ONLY when the user lets go of the slider
+        customDaysSlider.addEventListener('change', (e) => {
+            APP_STATE.customDays = parseInt(e.target.value);
+            renderChart();
+            saveState();
+        });
+    }
 
     reRenderAll();
 });
