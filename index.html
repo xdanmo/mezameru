@@ -5,14 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MEZAMERU</title>
     <link rel="stylesheet" href="styles.css">
-    <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
     
-    <!-- ================= LOGIN SCREEN ================= -->
     <div id="login-screen" class="login-screen active">
         <div class="login-content brutal-box">
             <h1>MEZAMERU</h1>
@@ -33,7 +31,6 @@
 
     <div class="app-container">
         
-        <!-- ================= TAB 1: HOME ================= -->
         <main id="tab-home" class="tab-content active">
             <header class="brutal-header">
                 <div class="date-scroller-wrapper">
@@ -51,7 +48,6 @@
             <div class="habit-list" id="home-habit-list"></div>
         </main>
 
-        <!-- ================= TAB 2: EDIT HABITS ================= -->
         <main id="tab-edit" class="tab-content">
             <header class="brutal-header">
                 <h2 class="section-title">MANAGE HABITS</h2>
@@ -64,7 +60,6 @@
             </button>
         </main>
 
-        <!-- ================= TAB 3: ANALYTICS ================= -->
         <main id="tab-analytics" class="tab-content">
             <header class="brutal-header">
                 <h2 class="section-title">ANALYTICS</h2>
@@ -74,7 +69,6 @@
             <div class="habit-list" id="analytics-habit-list"></div>
         </main>
 
-        <!-- ================= TAB 4: ACCOUNT ================= -->
         <main id="tab-account" class="tab-content">
             <div class="profile-section brutal-box">
                 <div class="avatar">
@@ -87,7 +81,6 @@
             <button class="brutal-btn btn-logout" onclick="location.reload()">LOG OUT</button>
         </main>
 
-        <!-- ================= BOTTOM NAVIGATION ================= -->
         <nav class="bottom-nav">
             <button class="nav-item active" data-target="tab-home">
                 <i class="ph-bold ph-house"></i>
@@ -107,10 +100,8 @@
             </button>
         </nav>
 
-        <!-- ================= OVERLAY ================= -->
         <div class="sheet-overlay" id="sheet-overlay"></div>
 
-        <!-- ================= SHEET 1: HOME STATUS UPDATE ================= -->
         <div class="bottom-sheet brutal-box" id="status-sheet">
             <div class="sheet-header">
                 <div>
@@ -124,7 +115,10 @@
                 <div class="slider-control brutal-box">
                     <div class="slider-header">
                         <span class="mono-text">PROGRESS</span>
-                        <span id="sheet-current-progress" class="huge-text">0/0</span>
+                        <div class="progress-input-group">
+                            <input type="number" id="sheet-current-input" class="huge-input" value="0">
+                            <span id="sheet-max-display" class="huge-text">/0</span>
+                        </div>
                     </div>
                     <input type="range" id="progress-slider" class="brutal-slider" min="0" max="10" value="0">
                 </div>
@@ -137,7 +131,6 @@
             </div>
         </div>
 
-        <!-- ================= SHEET 2: EDIT / ADD HABIT ================= -->
         <div class="bottom-sheet brutal-box" id="edit-sheet">
             <div class="sheet-header">
                 <div>
@@ -168,7 +161,6 @@
             </div>
         </div>
 
-        <!-- ================= SHEET 3: ANALYTICS GRAPH ================= -->
         <div class="bottom-sheet brutal-box" id="analytics-sheet">
             <div class="sheet-header">
                 <div>
@@ -186,9 +178,12 @@
                     <button class="brutal-btn filter-btn-small" data-range="custom">CUSTOM</button>
                 </div>
 
-                <div class="custom-range-container" id="custom-range-container">
-                    <input type="number" id="custom-days-input" class="brutal-input" placeholder="DAYS" min="1">
-                    <button class="brutal-btn" id="btn-apply-custom">APPLY</button>
+                <div class="custom-range-container" id="custom-range-container" style="flex-direction: column; gap: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                        <span class="mono-text">TIMEFRAME</span>
+                        <span class="mono-text" id="custom-days-display" style="font-size: 1rem; font-weight: 900; background: var(--acid); padding: 4px 8px; border: 2px solid var(--fg);">14 DAYS</span>
+                    </div>
+                    <input type="range" id="custom-days-slider" class="brutal-slider" min="1" max="100" value="14">
                 </div>
 
                 <div class="chart-container brutal-box">
