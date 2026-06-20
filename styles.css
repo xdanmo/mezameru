@@ -21,7 +21,7 @@
 html, body {
     height: 100%;
     overflow: hidden; 
-    overscroll-behavior-y: none; /* Stops the pull-to-refresh bounce */
+    overscroll-behavior-y: none; 
 }
 
 body { 
@@ -36,15 +36,13 @@ body {
 .app-container { 
     width: 100%; 
     max-width: 480px; 
-    /* Use 100dvh (Dynamic Viewport Height) to fix the mobile address bar issue */
     height: 100dvh; 
     background-color: var(--bg); 
     position: relative; 
     display: flex; 
     flex-direction: column; 
     overflow: hidden; 
-    border-left: var(--border-thick) solid var(--fg); 
-    border-right: var(--border-thick) solid var(--fg); 
+    border: var(--border-thick) solid var(--fg); 
 }
 
 /* --- Core Brutalist Classes --- */
@@ -85,19 +83,44 @@ body {
 .tab-content.active { display: block; }
 
 /* --- Headers --- */
-.brutal-header { margin-bottom: 24px; padding-top: 10px; border-bottom: var(--border-thick) solid var(--fg); padding-bottom: 10px;}
+.brutal-header { margin-bottom: 24px; border-bottom: var(--border-thick) solid var(--fg); padding-bottom: 16px; text-align: center;}
 .section-title { font-size: 2.2rem; font-weight: 900; letter-spacing: -1px; }
 
 /* --- Horizontal Date Scroller --- */
-.date-scroller-wrapper { width: 100%; margin: 0 auto 20px auto; position: relative; }
-.date-scroller { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; gap: 12px; padding: 10px calc(50% - 35px); }
+.date-scroller-wrapper { 
+    width: calc(100% + 48px); 
+    margin: -24px -24px 20px -24px; 
+    position: relative; 
+    background: transparent; 
+    border-bottom: var(--border-thick) solid var(--fg);
+}
+.date-scroller { 
+    display: flex; 
+    overflow-x: auto; 
+    scroll-snap-type: x mandatory; 
+    scrollbar-width: none; 
+    gap: 12px; 
+    padding: 24px calc(50% - 35px); 
+}
 .date-scroller::-webkit-scrollbar { display: none; } 
-.date-item { flex: 0 0 auto; width: 70px; height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; scroll-snap-align: center; border: var(--border-thick) solid var(--fg); background: var(--bg); cursor: pointer; box-shadow: 4px 4px 0px var(--fg); transition: transform 0.1s; }
+
+.date-item { flex: 0 0 auto; width: 70px; height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; scroll-snap-align: center; border: var(--border-thick) solid var(--fg); background: var(--bg); cursor: pointer; box-shadow: 4px 4px 0px var(--fg); transition: transform 0.1s; position: relative; }
 .date-item:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px var(--fg); }
 .date-item.active { background: var(--acid); box-shadow: inset 4px 4px 0px rgba(0,0,0,0.1); transform: translate(2px, 2px); box-shadow: 2px 2px 0px var(--fg); }
-.date-item.disabled { opacity: 0.3; pointer-events: none; background: var(--gray); box-shadow: none; }
 .date-item-day { font-family: var(--font-mono); font-size: 0.7rem; font-weight: 800; border-bottom: 2px solid var(--fg); width: 100%; text-align: center; padding-bottom: 2px; margin-bottom: 4px;}
 .date-item-num { font-size: 1.5rem; font-weight: 900; }
+
+.dummy-item { 
+    position: absolute; 
+    width: 70px; height: 80px; 
+    display: flex; flex-direction: column; align-items: center; justify-content: center; 
+    border: var(--border-thick) solid #999; 
+    background: var(--gray); 
+    pointer-events: none; 
+    opacity: 0.5;
+}
+.dummy-item .date-item-day { font-family: var(--font-mono); font-size: 0.7rem; font-weight: 800; border-bottom: 2px solid #999; width: 100%; text-align: center; padding-bottom: 2px; margin-bottom: 4px; color: #777; }
+.dummy-item .date-item-num { font-size: 1.5rem; font-weight: 900; color: #777; }
 
 /* --- Filter Controls --- */
 .filter-controls { display: flex; gap: 8px; margin-bottom: 24px; }
@@ -109,7 +132,7 @@ body {
 .analytics-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .filter-btn-small { flex: 1; padding: 8px 4px; font-size: 0.7rem; font-family: var(--font-mono); }
 .filter-btn-small.active { background: var(--fg); color: var(--bg); box-shadow: var(--shadow-pressed); transform: translate(4px, 4px); }
-.custom-range-container { display: none; gap: 8px; margin-bottom: 16px; }
+.custom-range-container { display: none; margin-bottom: 16px; }
 .custom-range-container.active { display: flex; }
 .chart-container { width: 100%; height: 250px; padding: 10px; background: var(--acid); margin-top: 16px; }
 
@@ -136,6 +159,11 @@ body {
 .brutal-input { width: 100%; padding: 14px; border: var(--border-thick) solid var(--fg); background: var(--bg); font-family: var(--font-mono); font-weight: bold; font-size: 1rem; outline: none; text-transform: uppercase; box-shadow: inset 4px 4px 0px rgba(0,0,0,0.05); }
 .brutal-input:focus { background: var(--acid); }
 
+/* --- Smart Precision Input (New) --- */
+.progress-input-group { display: flex; align-items: baseline; justify-content: flex-end; }
+.huge-input { width: 130px; text-align: right; font-size: 2.5rem; font-weight: 900; background: var(--acid); border: 3px solid var(--fg); color: var(--fg); outline: none; font-family: var(--font-main); padding: 0 8px; box-shadow: inset 4px 4px 0px rgba(0,0,0,0.15); margin-right: 4px; border-radius: 0; -webkit-appearance: none;}
+.huge-input:focus { background: var(--accent); color: var(--bg); }
+
 .form-row { display: flex; gap: 12px; width: 100%; }
 .form-group { flex: 1; display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 
@@ -155,8 +183,8 @@ body {
 /* --- Bottom Sheets General --- */
 .sheet-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 90; opacity: 0; pointer-events: none; }
 .sheet-overlay.active { opacity: 1; pointer-events: auto; }
-.bottom-sheet { position: absolute; bottom: -100%; left: 0; width: 100%; z-index: 100; transition: bottom 0.3s cubic-bezier(0, 0, 0, 1); padding-bottom: env(safe-area-inset-bottom); display: flex; flex-direction: column; max-height: 85vh; }
-.bottom-sheet.active { bottom: -4px; /* Hide bottom border */ }
+.bottom-sheet { position: absolute; bottom: -100%; left: 0; width: 100%; z-index: 100; transition: bottom 0.3s cubic-bezier(0, 0, 0, 1); padding-bottom: env(safe-area-inset-bottom); display: flex; flex-direction: column; max-height: 85vh; border-top: var(--border-thick) solid var(--fg); }
+.bottom-sheet.active { bottom: -4px; }
 .sheet-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px; border-bottom: var(--border-thick) solid var(--fg); background: var(--acid); }
 .sheet-header h3 { font-size: 1.5rem; font-weight: 900; }
 .btn-close-sheet { background: var(--bg); border: 3px solid var(--fg); font-family: var(--font-mono); font-size: 1.2rem; font-weight: bold; cursor: pointer; padding: 4px 8px; box-shadow: 3px 3px 0px var(--fg); }
