@@ -4,9 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MEZAMERU</title>
+    <!-- Cropper.js CSS for image cropping -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <link rel="stylesheet" href="styles.css">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Cropper.js JS for image cropping -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -16,14 +20,9 @@
             <h1>MEZAMERU</h1>
             <p class="mono-text">SIGN IN TO ACCESS YOUR HABITS</p>
             
-            <div id="g_id_onload"
-                 data-client_id="1057081070342-87s2apeim9b3qn1a4kol0p7l2gbttp3k.apps.googleusercontent.com"
-                 data-context="signin"
-                 data-ux_mode="popup"
-                 data-callback="handleCredentialResponse"
-                 data-auto_prompt="false">
-            </div>
-            <div class="g_id_signin brutal-signin" data-type="standard" data-theme="filled_black" data-size="large"></div>
+            <button id="btn-google-login" class="brutal-btn" style="padding: 16px 32px; font-size: 1.2rem; margin-top: 20px;">
+                SIGN IN WITH GOOGLE
+            </button>
             
             <p id="login-status" class="mono-text blink" style="display: none;">[ SYNCING WITH CLOUD ]</p>
         </div>
@@ -40,9 +39,9 @@
             </header>
 
             <div class="filter-controls">
-                <button class="filter-btn active" data-filter="TODO">TO-DO</button>
-                <button class="filter-btn" data-filter="COMPLETED">DONE</button>
-                <button class="filter-btn" data-filter="SKIPPED">SKIPPED</button>
+                <button class="filter-btn active" data-filter="TODO">TO-DO <span id="count-todo">(0)</span></button>
+                <button class="filter-btn" data-filter="COMPLETED">DONE <span id="count-done">(0)</span></button>
+                <button class="filter-btn" data-filter="SKIPPED">SKIPPED <span id="count-skipped">(0)</span></button>
             </div>
 
             <div class="habit-list" id="home-habit-list"></div>
@@ -69,16 +68,33 @@
             <div class="habit-list" id="analytics-habit-list"></div>
         </main>
 
-        <main id="tab-account" class="tab-content">
+        <main id="tab-account" class="tab-content account-tab-flex">
             <div class="profile-section brutal-box">
-                <div class="avatar">
-                    <i class="ph-bold ph-user"></i>
+                <div class="avatar" id="avatar-container">
+                    <img id="profile-avatar-img" src="" alt="Profile" style="display: none; width: 100%; height: 100%; object-fit: cover;">
+                    <i class="ph-bold ph-user" id="profile-avatar-icon"></i>
+                    <div class="avatar-edit-overlay">
+                        <i class="ph-bold ph-camera"></i>
+                    </div>
                 </div>
-                <h2>PROFILE</h2>
-                <p class="mono-text highlight">CLOUD SYNC : ACTIVE</p>
+                <input type="file" id="pfp-upload" accept="image/*" style="display: none;">
+                
+                <input type="text" id="profile-name-input" class="profile-name" value="PROFILE" placeholder="YOUR NAME">
+                
+                <p class="mono-text highlight" id="sync-status-msg">CLOUD SYNC : ACTIVE</p>
             </div>
 
-            <button class="brutal-btn btn-logout" onclick="location.reload()">LOG OUT</button>
+            <div class="account-actions" style="width: 100%; margin-bottom: 24px; display: flex; flex-direction: column; gap: 12px;">
+                <div class="form-row">
+                    <button class="brutal-btn action-btn outline-btn" id="btn-export-data" style="margin-top: 0;">EXPORT DATA</button>
+                    <button class="brutal-btn action-btn outline-btn" id="btn-import-data" style="margin-top: 0;">IMPORT DATA</button>
+                    <input type="file" id="data-upload" accept="application/json" style="display: none;">
+                </div>
+            </div>
+
+            <button class="brutal-btn btn-logout" id="btn-logout">LOG OUT</button>
+            
+            <p class="watermark mono-text">CREATED BY ANMOL JAISWAL</p>
         </main>
 
         <nav class="bottom-nav">
@@ -157,7 +173,59 @@
                     </div>
                 </div>
 
-                <button class="brutal-btn action-btn" id="btn-save-habit">SAVE HABIT</button>
+                <div class="form-group" style="margin-top: 4px; margin-bottom: 24px;">
+                    <label class="mono-text">REPEAT ON</label>
+                    <div class="day-selector" id="edit-days-container">
+                        <button type="button" class="day-btn active" data-day="0">S</button>
+                        <button type="button" class="day-btn active" data-day="1">M</button>
+                        <button type="button" class="day-btn active" data-day="2">T</button>
+                        <button type="button" class="day-btn active" data-day="3">W</button>
+                        <button type="button" class="day-btn active" data-day="4">T</button>
+                        <button type="button" class="day-btn active" data-day="5">F</button>
+                        <button type="button" class="day-btn active" data-day="6">S</button>
+                    </div>
+                </div>
+
+                <div class="form-row" style="margin-top: 12px;">
+                    <button class="brutal-btn action-btn" id="btn-save-habit" style="margin-top: 0;">SAVE</button>
+                    <button class="brutal-btn action-btn" id="btn-delete-habit" style="margin-top: 0; background: var(--fg); color: var(--bg); display: none;">DELETE</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- DELETE CONFIRMATION SHEET -->
+        <div class="bottom-sheet brutal-box" id="delete-confirm-sheet">
+            <div class="sheet-header" style="background: var(--accent);">
+                <div>
+                    <h3 style="color: var(--bg);">DELETE HABIT?</h3>
+                    <p class="mono-text" style="color: var(--bg);">THIS ACTION CANNOT BE UNDONE</p>
+                </div>
+                <button class="btn-close-sheet" id="btn-close-delete-confirm">[X]</button>
+            </div>
+            <div class="sheet-content">
+                <p class="mono-text" style="margin-bottom: 24px; font-size: 1rem; text-align: center;">ARE YOU SURE YOU WANT TO PERMANENTLY DELETE THIS HABIT?</p>
+                <div class="form-row">
+                    <button class="brutal-btn action-btn outline-btn" id="btn-cancel-delete" style="margin-top: 0;">CANCEL</button>
+                    <button class="brutal-btn action-btn" id="btn-confirm-delete" style="margin-top: 0; background: var(--fg); color: var(--bg);">YES, DELETE</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW IMPORT CONFIRMATION SHEET -->
+        <div class="bottom-sheet brutal-box" id="import-confirm-sheet">
+            <div class="sheet-header" style="background: var(--accent);">
+                <div>
+                    <h3 style="color: var(--bg);">OVERWRITE DATA?</h3>
+                    <p class="mono-text" style="color: var(--bg);">WARNING</p>
+                </div>
+                <button class="btn-close-sheet" id="btn-close-import-confirm">[X]</button>
+            </div>
+            <div class="sheet-content">
+                <p class="mono-text" style="margin-bottom: 24px; font-size: 1rem; text-align: center;">THIS WILL DELETE YOUR CURRENT DATA AND REPLACE IT WITH THE IMPORTED FILE. CONTINUE?</p>
+                <div class="form-row">
+                    <button class="brutal-btn action-btn outline-btn" id="btn-cancel-import" style="margin-top: 0;">CANCEL</button>
+                    <button class="brutal-btn action-btn" id="btn-confirm-import" style="margin-top: 0; background: var(--fg); color: var(--bg);">YES, IMPORT</button>
+                </div>
             </div>
         </div>
 
@@ -165,7 +233,7 @@
             <div class="sheet-header">
                 <div>
                     <h3 id="analytics-sheet-title">HABIT NAME</h3>
-                    <p class="mono-text">COMPLETION RATE %</p>
+                    <p class="mono-text highlight" id="analytics-average-display" style="margin-top: 4px;">COMPLETION RATE: --%</p>
                 </div>
                 <button class="btn-close-sheet" id="btn-close-analytics">[X]</button>
             </div>
@@ -189,6 +257,22 @@
                 <div class="chart-container brutal-box">
                     <canvas id="analytics-chart"></canvas>
                 </div>
+            </div>
+        </div>
+
+        <div class="bottom-sheet brutal-box" id="crop-sheet">
+            <div class="sheet-header">
+                <div>
+                    <h3 id="crop-sheet-title">CROP IMAGE</h3>
+                    <p class="mono-text">ADJUST PROFILE PICTURE</p>
+                </div>
+                <button class="btn-close-sheet" id="btn-close-crop">[X]</button>
+            </div>
+            <div class="sheet-content">
+                <div class="crop-container brutal-box">
+                    <img id="crop-image-source" src="" style="max-width: 100%; display: block;">
+                </div>
+                <button class="brutal-btn action-btn" id="btn-save-crop">CROP & SAVE</button>
             </div>
         </div>
 
