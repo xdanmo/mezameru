@@ -2,8 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MEZAMERU</title>
+    
+    <!-- PWA Manifest & Colors -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ccff00">
+    
+    <!-- iOS Specific PWA Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MEZAMERU">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
     <!-- Cropper.js CSS for image cropping -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <link rel="stylesheet" href="styles.css">
@@ -193,7 +204,6 @@
             </div>
         </div>
 
-        <!-- DELETE CONFIRMATION SHEET -->
         <div class="bottom-sheet brutal-box" id="delete-confirm-sheet">
             <div class="sheet-header" style="background: var(--accent);">
                 <div>
@@ -211,7 +221,6 @@
             </div>
         </div>
 
-        <!-- NEW IMPORT CONFIRMATION SHEET -->
         <div class="bottom-sheet brutal-box" id="import-confirm-sheet">
             <div class="sheet-header" style="background: var(--accent);">
                 <div>
@@ -277,6 +286,20 @@
         </div>
 
     </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registered with scope:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('ServiceWorker registration failed:', error);
+                    });
+            });
+        }
+    </script>
     <script src="app.js"></script>
 </body>
 </html>
