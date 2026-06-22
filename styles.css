@@ -70,6 +70,17 @@ body {
     border: 2px solid var(--fg);
 }
 
+/* --- Remove Spin Buttons from Number Inputs --- */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+input[type="number"] {
+    -moz-appearance: textfield; /* Firefox */
+    appearance: textfield;
+}
+
 /* --- Login Screen --- */
 .login-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--acid); display: none; justify-content: center; align-items: center; z-index: 2000; }
 .login-screen.active { display: flex; }
@@ -81,6 +92,7 @@ body {
 /* --- Tabs Content --- */
 .tab-content { flex: 1; overflow-y: auto; padding: 24px 24px calc(var(--nav-height) + 80px) 24px; display: none; }
 .tab-content.active { display: block; }
+.account-tab-flex.active { display: flex; flex-direction: column; }
 
 /* --- Headers --- */
 .brutal-header { margin-bottom: 24px; border-bottom: var(--border-thick) solid var(--fg); padding-bottom: 16px; text-align: center;}
@@ -106,7 +118,7 @@ body {
 
 .date-item { flex: 0 0 auto; width: 70px; height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; scroll-snap-align: center; border: var(--border-thick) solid var(--fg); background: var(--bg); cursor: pointer; box-shadow: 4px 4px 0px var(--fg); transition: transform 0.1s; position: relative; }
 .date-item:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px var(--fg); }
-.date-item.active { background: var(--acid); box-shadow: inset 4px 4px 0px rgba(0,0,0,0.1); transform: translate(2px, 2px); box-shadow: 2px 2px 0px var(--fg); }
+.date-item.active { background: var(--acid); box-shadow: inset 4px 4px 0px rgba(0,0,0,0.1), 2px 2px 0px var(--fg); transform: translate(2px, 2px); }
 .date-item-day { font-family: var(--font-mono); font-size: 0.7rem; font-weight: 800; border-bottom: 2px solid var(--fg); width: 100%; text-align: center; padding-bottom: 2px; margin-bottom: 4px;}
 .date-item-num { font-size: 1.5rem; font-weight: 900; }
 
@@ -159,18 +171,36 @@ body {
 .brutal-input { width: 100%; padding: 14px; border: var(--border-thick) solid var(--fg); background: var(--bg); font-family: var(--font-mono); font-weight: bold; font-size: 1rem; outline: none; text-transform: uppercase; box-shadow: inset 4px 4px 0px rgba(0,0,0,0.05); }
 .brutal-input:focus { background: var(--acid); }
 
-/* --- Smart Precision Input (New) --- */
+/* --- Day Selector --- */
+.day-selector { display: flex; gap: 6px; justify-content: space-between; margin-top: 8px; }
+.day-btn { flex: 1; aspect-ratio: 1; border: 3px solid var(--fg); background: var(--bg); font-family: var(--font-mono); font-weight: 900; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.1s; box-shadow: 2px 2px 0px var(--fg); outline: none; }
+.day-btn:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--fg); }
+.day-btn.active { background: var(--acid); box-shadow: inset 3px 3px 0px rgba(0,0,0,0.1); border-width: 4px; }
+
+/* --- Smart Precision Input --- */
 .progress-input-group { display: flex; align-items: baseline; justify-content: flex-end; }
-.huge-input { width: 130px; text-align: right; font-size: 2.5rem; font-weight: 900; background: var(--acid); border: 3px solid var(--fg); color: var(--fg); outline: none; font-family: var(--font-main); padding: 0 8px; box-shadow: inset 4px 4px 0px rgba(0,0,0,0.15); margin-right: 4px; border-radius: 0; -webkit-appearance: none;}
+.huge-input { width: 130px; text-align: right; font-size: 2.5rem; font-weight: 900; background: var(--acid); border: 3px solid var(--fg); color: var(--fg); outline: none; font-family: var(--font-main); padding: 0 8px; box-shadow: inset 4px 4px 0px rgba(0,0,0,0.15); margin-right: 4px; border-radius: 0; appearance: none; -webkit-appearance: none;}
 .huge-input:focus { background: var(--accent); color: var(--bg); }
 
 .form-row { display: flex; gap: 12px; width: 100%; }
 .form-group { flex: 1; display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 
 /* --- Account Tab --- */
-.profile-section { padding: 40px 20px; margin-bottom: 40px; display: flex; flex-direction: column; align-items: center;}
-.avatar { font-size: 5rem; border: var(--border-thick) solid var(--fg); padding: 10px; box-shadow: 4px 4px 0px var(--fg); margin-bottom: 20px; background: var(--acid); }
+.profile-section { padding: 40px 20px; margin-bottom: 24px; display: flex; flex-direction: column; align-items: center;}
+.avatar { position: relative; width: 100px; height: 100px; border: var(--border-thick) solid var(--fg); box-shadow: 4px 4px 0px var(--fg); margin-bottom: 20px; background: var(--acid); display: flex; justify-content: center; align-items: center; cursor: pointer; overflow: hidden;}
+.avatar i { font-size: 5rem; }
+.avatar-edit-overlay { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.2s; color: var(--acid); font-size: 2.5rem; }
+.avatar:hover .avatar-edit-overlay { opacity: 1; }
+
+.profile-name { text-align: center; font-size: 2rem; font-weight: 900; margin-bottom: 12px; background: transparent; border: 2px dashed transparent; outline: none; padding: 4px; width: 100%; font-family: var(--font-main); color: var(--fg); text-transform: uppercase; transition: all 0.2s; }
+.profile-name:hover { border-color: var(--gray); }
+.profile-name:focus { border: var(--border-thick) dashed var(--fg); background: var(--bg); }
+
 .btn-logout { width: 100%; padding: 16px; background: var(--accent); color: var(--bg); font-size: 1rem; }
+.watermark { text-align: center; margin-top: auto; padding-top: 40px; font-weight: 900; opacity: 0.7; }
+
+/* --- Crop UI Overlay Style --- */
+.crop-container { width: 100%; max-height: 50vh; background: var(--gray); border: var(--border-thick) solid var(--fg); margin-top: 12px; overflow: hidden; }
 
 /* --- Bottom Navigation --- */
 .bottom-nav { position: absolute; bottom: 0; width: 100%; height: var(--nav-height); background: var(--bg); display: flex; border-top: var(--border-thick) solid var(--fg); z-index: 10; }
