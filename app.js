@@ -12,10 +12,12 @@ const FILE_NAME = 'mezameru_data.json';
 let driveFileId = null;
 
 const DEFAULT_STATE = {
-    selectedDate: '', currentFilter: 'TODO', analyticsRange: '7days', customDays: 14, habits: []
+    selectedDate: '', currentFilter: 'TODO', analyticsRange: '7days', customDays: 14, 
+    userName: 'PROFILE', profilePicBase64: null, habits: []
 };
 
-let APP_STATE = JSON.parse(localStorage.getItem('mezameru_local_state')) || DEFAULT_STATE;
+// Merge loaded state with defaults in case of missing keys
+let APP_STATE = { ...DEFAULT_STATE, ...(JSON.parse(localStorage.getItem('mezameru_local_state')) || {}) };
 
 function logoutUser() {
     driveToken = null;
@@ -51,7 +53,8 @@ async function syncWithDrive() {
                 headers: { 'Authorization': `Bearer ${driveToken}` }
             });
             const cloudData = await contentRes.json();
-            APP_STATE = cloudData;
+            
+            APP_STATE = { ...DEFAULT_STATE, ...cloudData };
         } else {
             await uploadToDrive(true);
         }
@@ -61,6 +64,13 @@ async function syncWithDrive() {
 
         saveLocal(); 
         reRenderAll();
+
+        if (APP_STATE.profilePicBase64) {
+            document.getElementById('profile-avatar-img').src = APP_STATE.profilePicBase64;
+            document.getElementById('profile-avatar-img').style.display = 'block';
+            document.getElementById('profile-avatar-icon').style.display = 'none';
+        }
+
     } catch (error) {
         console.error('SYNC_FAIL:', error);
         if (error.message === "TOKEN_EXPIRED") logoutUser();
@@ -71,10 +81,21 @@ async function syncWithDrive() {
 async function uploadToDrive(isNew = false) {
     if (!driveToken) return;
     try {
-        const metadata = { name: FILE_NAME, parents: ['appDataFolder'] };
-        const form = new FormData();
-        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-        form.append('file', new Blob([JSON.stringify(APP_STATE)], { type: 'application/json' }));
+        const boundary = '-------314159265358979323846';
+        const delimiter = "\r\n--" + boundary + "\r\n";
+        const close_delim = "\r\n--" + boundary + "--";
+
+        const metadata = { name: FILE_NAME };
+        if (isNew) metadata.parents = ['appDataFolder'];
+
+        const multipartRequestBody =
+            delimiter +
+            'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+            JSON.stringify(metadata) +
+            delimiter +
+            'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+            JSON.stringify(APP_STATE) +
+            close_delim;
 
         let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
         let method = 'POST';
@@ -83,7 +104,15 @@ async function uploadToDrive(isNew = false) {
             url = `https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=multipart`;
             method = 'PATCH';
         }
-        const res = await fetch(url, { method: method, headers: { 'Authorization': `Bearer ${driveToken}` }, body: form });
+
+        const res = await fetch(url, {
+            method: method,
+            headers: {
+                'Authorization': `Bearer ${driveToken}`,
+                'Content-Type': `multipart/related; boundary=${boundary}`
+            },
+            body: multipartRequestBody
+        });
         
         if (res.status === 401) {
             logoutUser();
@@ -152,9 +181,25 @@ const analyticsListContainer = document.getElementById('analytics-habit-list');
 const renderHomeTab = () => {
     homeListContainer.innerHTML = '';
     let visibleCount = 0;
+    
+    // Track counts for the filter tabs
+    let counts = { TODO: 0, COMPLETED: 0, SKIPPED: 0 };
+
+    const [sy, sm, sd] = APP_STATE.selectedDate.split('-');
+    const currentDayOfWeek = new Date(sy, sm - 1, sd).getDay();
 
     APP_STATE.habits.forEach(habit => {
+        const activeDays = habit.days || [0, 1, 2, 3, 4, 5, 6];
+        if (!activeDays.includes(currentDayOfWeek)) return;
+
         const record = getHabitRecord(habit.id, APP_STATE.selectedDate);
+        
+        // Tally up counts for the daily status
+        if (record.status === 'COMPLETED') counts.COMPLETED++;
+        else if (record.status === 'SKIPPED') counts.SKIPPED++;
+        else counts.TODO++;
+
+        // Render card based on current filter
         if (record.status !== APP_STATE.currentFilter && !(APP_STATE.currentFilter === 'TODO' && record.status === 'TODO')) return;
 
         visibleCount++;
@@ -169,8 +214,13 @@ const renderHomeTab = () => {
         card.innerHTML = `<div class="habit-info"><h3>${habit.name}</h3></div><button class="status-btn ${statusClass}">${btnText}</button>`;
         homeListContainer.appendChild(card);
     });
+    
+    // Update the UI counts in the brackets
+    document.getElementById('count-todo').innerText = `(${counts.TODO})`;
+    document.getElementById('count-done').innerText = `(${counts.COMPLETED})`;
+    document.getElementById('count-skipped').innerText = `(${counts.SKIPPED})`;
 
-    if (visibleCount === 0) homeListContainer.innerHTML = `<div class="empty-state">NO HABITS FOUND</div>`;
+    if (visibleCount === 0) homeListContainer.innerHTML = `<div class="empty-state">NO HABITS SCHEDULED FOR TODAY</div>`;
 };
 
 const renderEditTab = () => {
@@ -184,7 +234,11 @@ const renderEditTab = () => {
         const card = document.createElement('div');
         card.className = 'edit-habit-card';
         card.setAttribute('data-id', habit.id);
-        card.innerHTML = `<div class="edit-info"><h3>${habit.name}</h3><p>GOAL: ${habit.max} ${habit.unit}</p></div><i class="ph-bold ph-arrow-right edit-indicator"></i>`;
+        
+        const activeDays = habit.days || [0, 1, 2, 3, 4, 5, 6];
+        const daysLabel = activeDays.length === 7 ? 'EVERYDAY' : `${activeDays.length} DAYS/WK`;
+
+        card.innerHTML = `<div class="edit-info"><h3>${habit.name}</h3><p>GOAL: ${habit.max} ${habit.unit} • ${daysLabel}</p></div><i class="ph-bold ph-arrow-right edit-indicator"></i>`;
         editListContainer.appendChild(card);
     });
 };
@@ -205,11 +259,26 @@ const renderAnalyticsTab = () => {
     });
 };
 
+const renderAccountTab = () => {
+    const nameInput = document.getElementById('profile-name-input');
+    if (nameInput) {
+        nameInput.value = APP_STATE.userName || 'PROFILE';
+    }
+    
+    if (APP_STATE.profilePicBase64) {
+        document.getElementById('profile-avatar-img').src = APP_STATE.profilePicBase64;
+        document.getElementById('profile-avatar-img').style.display = 'block';
+        document.getElementById('profile-avatar-icon').style.display = 'none';
+    }
+};
+
 const reRenderAll = () => {
-    renderHomeTab(); renderEditTab(); renderAnalyticsTab();
+    renderHomeTab(); renderEditTab(); renderAnalyticsTab(); renderAccountTab();
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+
+    let imageCropper = null; 
 
     // --- OAUTH2 LOGIN INITIALIZATION ---
     const btnLogin = document.getElementById('btn-google-login');
@@ -244,11 +313,145 @@ document.addEventListener('DOMContentLoaded', () => {
         if(loginScreen) loginScreen.classList.add('active');
     }
 
-    // --- ACCOUNT LOGOUT BUTTON ---
-    const logoutBtn = document.getElementById('btn-logout');
-    if(logoutBtn) {
-        logoutBtn.addEventListener('click', logoutUser);
+    // --- ACCOUNT TAB LOGIC ---
+    
+    // Data Export
+    const btnExport = document.getElementById('btn-export-data');
+    if (btnExport) {
+        btnExport.addEventListener('click', () => {
+            const dataStr = JSON.stringify(APP_STATE, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `mezameru_backup_${formatDateKey(new Date())}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
     }
+
+    // Data Import Logic & Warning Modal
+    const btnImport = document.getElementById('btn-import-data');
+    const dataUpload = document.getElementById('data-upload');
+    const importConfirmSheet = document.getElementById('import-confirm-sheet');
+    const btnCancelImport = document.getElementById('btn-cancel-import');
+    const btnConfirmImport = document.getElementById('btn-confirm-import');
+    const overlay = document.getElementById('sheet-overlay');
+
+    if (btnImport) {
+        btnImport.addEventListener('click', () => {
+            overlay.classList.add('active');
+            importConfirmSheet.classList.add('active');
+        });
+    }
+
+    if (btnCancelImport) {
+        btnCancelImport.addEventListener('click', () => {
+            closeAllSheets();
+        });
+    }
+
+    if (btnConfirmImport && dataUpload) {
+        btnConfirmImport.addEventListener('click', () => {
+            dataUpload.click();
+        });
+        
+        dataUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const importedState = JSON.parse(event.target.result);
+                    if (importedState && importedState.habits) {
+                        APP_STATE = { ...DEFAULT_STATE, ...importedState };
+                        saveState(); 
+                        reRenderAll();
+                        closeAllSheets();
+                        alert("DATA IMPORTED SUCCESSFULLY!");
+                    } else {
+                        alert("INVALID BACKUP FILE: Missing habit data.");
+                        closeAllSheets();
+                    }
+                } catch (err) {
+                    alert("ERROR PARSING FILE: Ensure it is a valid JSON backup.");
+                    closeAllSheets();
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = ''; // Reset input
+        });
+    }
+
+    // Profile Settings
+    const profileNameInput = document.getElementById('profile-name-input');
+    if (profileNameInput) {
+        profileNameInput.addEventListener('change', (e) => {
+            APP_STATE.userName = e.target.value.trim().toUpperCase() || 'PROFILE';
+            saveState();
+        });
+    }
+
+    const avatarContainer = document.getElementById('avatar-container');
+    const pfpUpload = document.getElementById('pfp-upload');
+    const cropSheet = document.getElementById('crop-sheet');
+    const cropImageSource = document.getElementById('crop-image-source');
+    
+    if (avatarContainer && pfpUpload) {
+        avatarContainer.addEventListener('click', () => pfpUpload.click());
+        
+        pfpUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const url = URL.createObjectURL(file);
+            cropImageSource.src = url;
+            
+            overlay.classList.add('active');
+            cropSheet.classList.add('active');
+
+            if (imageCropper) imageCropper.destroy();
+
+            imageCropper = new Cropper(cropImageSource, {
+                aspectRatio: 1, 
+                viewMode: 1,    
+                background: false
+            });
+
+            e.target.value = '';
+        });
+    }
+
+    const btnSaveCrop = document.getElementById('btn-save-crop');
+    if (btnSaveCrop) {
+        btnSaveCrop.addEventListener('click', () => {
+            if (!imageCropper) return;
+
+            imageCropper.getCroppedCanvas({
+                width: 400,
+                height: 400
+            }).toBlob((blob) => {
+                if (!blob) return;
+
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+                reader.onloadend = () => {
+                    const base64data = reader.result;
+                    
+                    APP_STATE.profilePicBase64 = base64data;
+                    document.getElementById('profile-avatar-img').src = base64data;
+                    document.getElementById('profile-avatar-img').style.display = 'block';
+                    document.getElementById('profile-avatar-icon').style.display = 'none';
+                    
+                    closeAllSheets();
+                    saveState(); 
+                }
+            }, 'image/jpeg', 0.8);
+        });
+    }
+
+    const logoutBtn = document.getElementById('btn-logout');
+    if(logoutBtn) logoutBtn.addEventListener('click', logoutUser);
 
     // --- HARD-STOP DATE SCOLLER ---
     const dateScroller = document.getElementById('date-scroller');
@@ -336,20 +539,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderChart = () => {
         if (!currentAnalyticsHabitId) return;
+        
+        const fgColor = '#000000';
+        const bgColor = '#ffffff';
+
         const datesArray = getDatesForRange(APP_STATE.analyticsRange);
         const labels = [], dataPoints = [];
         const shortMonths = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
         const habit = APP_STATE.habits.find(h => h.id === currentAnalyticsHabitId);
+        const activeDays = habit.days || [0, 1, 2, 3, 4, 5, 6];
+
+        let totalPossible = 0;
+        let totalAchieved = 0;
 
         datesArray.forEach(dateObj => {
-            labels.push(`${shortMonths[dateObj.getMonth()]} ${dateObj.getDate()}`);
-            if (!habit) { dataPoints.push(0); return; }
-            const record = habit.history[formatDateKey(dateObj)];
-            let pct = 0;
-            if (record && record.status === 'COMPLETED') pct = 100;
-            else if (record && record.current > 0) pct = Math.round((record.current / habit.max) * 100);
-            dataPoints.push(pct);
+            if (habit && activeDays.includes(dateObj.getDay())) {
+                labels.push(`${shortMonths[dateObj.getMonth()]} ${dateObj.getDate()}`);
+                
+                const record = habit.history[formatDateKey(dateObj)];
+                let pct = 0;
+                if (record && record.status === 'COMPLETED') pct = 100;
+                else if (record && record.current > 0) pct = Math.round((record.current / habit.max) * 100);
+                
+                dataPoints.push(pct);
+                totalPossible += 100;
+                totalAchieved += pct;
+            } else {
+                labels.push(`${shortMonths[dateObj.getMonth()]} ${dateObj.getDate()}`);
+                dataPoints.push(null); // Return null for inactive days
+            }
         });
+
+        const avgDisplay = document.getElementById('analytics-average-display');
+        if (avgDisplay) {
+            if (totalPossible === 0) {
+                avgDisplay.innerText = `COMPLETION RATE: N/A`;
+            } else {
+                const avgPct = Math.round((totalAchieved / totalPossible) * 100);
+                avgDisplay.innerText = `COMPLETION RATE: ${avgPct}%`;
+            }
+        }
 
         if (analyticsChart) analyticsChart.destroy();
         
@@ -365,27 +594,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 labels: labels, 
                 datasets: [{ 
                     data: dataPoints, 
-                    borderColor: '#000000', 
+                    borderColor: fgColor, 
                     borderWidth: 4, 
-                    stepped: true,
-                    backgroundColor: '#ffffff',
-                    pointBackgroundColor: '#000000', 
-                    pointBorderColor: '#000000',
-                    pointBorderWidth: 3,
-                    pointRadius: 5, 
-                    pointHoverRadius: 8,
-                    fill: false 
+                    tension: 0.4, // ADDS THE CURVE TO THE LINE
+                    backgroundColor: bgColor,
+                    pointRadius: 0, // REMOVES DOTS
+                    pointHoverRadius: 0, // REMOVES HOVER DOTS
+                    fill: false,
+                    spanGaps: true 
                 }] 
             },
             options: { 
-                responsive: true, maintainAspectRatio: false, 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                interaction: { // Mode 'index' allows hover tooltips to work without dots
+                    mode: 'index',
+                    intersect: false,
+                },
                 scales: { 
-                    x: { grid: { color: '#000000', lineWidth: 2 }, border: { color: '#000000', width: 4 }, ticks: { color: '#000000' } }, 
-                    y: { min: 0, max: 100, grid: { color: '#000000', lineWidth: 2 }, border: { color: '#000000', width: 4 }, ticks: { stepSize: 25, color: '#000000' } } 
+                    x: { grid: { color: fgColor, lineWidth: 2 }, border: { color: fgColor, width: 4 }, ticks: { color: fgColor } }, 
+                    y: { min: 0, max: 100, grid: { color: fgColor, lineWidth: 2 }, border: { color: fgColor, width: 4 }, ticks: { stepSize: 25, color: fgColor } } 
                 }, 
                 plugins: { 
                     legend: { display: false }, 
-                    tooltip: { backgroundColor: '#ccff00', titleColor: '#000000', bodyColor: '#000000', borderColor: '#000000', borderWidth: 3, cornerRadius: 0, callbacks: { label: (ctx) => `${ctx.parsed.y}%` } } 
+                    tooltip: { backgroundColor: '#ccff00', titleColor: '#000000', bodyColor: '#000000', borderColor: fgColor, borderWidth: 3, cornerRadius: 0, callbacks: { label: (ctx) => `${ctx.parsed.y}%` } } 
                 } 
             }
         });
@@ -409,8 +641,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    const overlay = document.getElementById('sheet-overlay');
-    const closeAllSheets = () => { if(overlay) overlay.classList.remove('active'); document.querySelectorAll('.bottom-sheet').forEach(s => s.classList.remove('active')); currentAnalyticsHabitId = null; };
+    const closeAllSheets = () => { 
+        if(overlay) overlay.classList.remove('active'); 
+        document.querySelectorAll('.bottom-sheet').forEach(s => s.classList.remove('active')); 
+        currentAnalyticsHabitId = null; 
+        
+        if (imageCropper) {
+            imageCropper.destroy();
+            imageCropper = null;
+        }
+    };
     if(overlay) overlay.addEventListener('click', closeAllSheets);
     document.querySelectorAll('.btn-close-sheet').forEach(btn => btn.addEventListener('click', closeAllSheets));
 
@@ -433,7 +673,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('sheet-title').innerText = habit.name;
             document.getElementById('sheet-target').innerText = `GOAL: ${habit.max} ${habit.unit}`;
             
-            // Set up our smart precision group
             if(progressInput) progressInput.value = tempCurrentVal;
             if(progressMaxDisplay) progressMaxDisplay.innerText = `/${habit.max}`;
             if(progressSlider) { 
@@ -450,7 +689,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Slider updates text box
     if (progressSlider) {
         progressSlider.addEventListener('input', (e) => {
             tempCurrentVal = parseInt(e.target.value);
@@ -458,7 +696,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Text box updates slider (and clamps to max)
     if (progressInput) {
         progressInput.addEventListener('input', (e) => {
             const habit = APP_STATE.habits.find(h => h.id === trackingHabitId);
@@ -502,13 +739,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Sheet logic (Edit/Add) ---
+    // --- Day Selector Toggle Logic ---
+    const editDaysContainer = document.getElementById('edit-days-container');
+    if (editDaysContainer) {
+        editDaysContainer.addEventListener('click', (e) => {
+            if (e.target.classList.contains('day-btn')) {
+                e.target.classList.toggle('active');
+            }
+        });
+    }
+
+    // --- Sheet logic (Edit/Add/Delete) ---
     let editingHabitId = null;
     const btnFabAdd = document.getElementById('btn-fab-add');
     if (btnFabAdd) {
         btnFabAdd.addEventListener('click', () => {
-            editingHabitId = null; document.getElementById('edit-sheet-title').innerText = "ADD NEW HABIT";
-            document.getElementById('edit-name-input').value = ''; document.getElementById('edit-target-input').value = ''; document.getElementById('edit-unit-input').value = '';
+            editingHabitId = null; 
+            document.getElementById('edit-sheet-title').innerText = "ADD NEW HABIT";
+            document.getElementById('edit-name-input').value = ''; 
+            document.getElementById('edit-target-input').value = ''; 
+            document.getElementById('edit-unit-input').value = '';
+            
+            document.getElementById('btn-delete-habit').style.display = 'none';
+
+            document.querySelectorAll('.day-btn').forEach(btn => btn.classList.remove('active'));
+
             if(overlay) overlay.classList.add('active'); 
             document.getElementById('edit-sheet').classList.add('active');
         });
@@ -520,8 +775,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!card) return;
             editingHabitId = card.getAttribute('data-id');
             const habit = APP_STATE.habits.find(h => h.id === editingHabitId);
+            
             document.getElementById('edit-sheet-title').innerText = "EDIT HABIT";
-            document.getElementById('edit-name-input').value = habit.name; document.getElementById('edit-target-input').value = habit.max; document.getElementById('edit-unit-input').value = habit.unit;
+            document.getElementById('edit-name-input').value = habit.name; 
+            document.getElementById('edit-target-input').value = habit.max; 
+            document.getElementById('edit-unit-input').value = habit.unit;
+            
+            document.getElementById('btn-delete-habit').style.display = 'block';
+
+            const activeDays = habit.days || [0, 1, 2, 3, 4, 5, 6];
+            document.querySelectorAll('.day-btn').forEach(btn => {
+                const dayNum = parseInt(btn.getAttribute('data-day'));
+                if (activeDays.includes(dayNum)) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+
             if(overlay) overlay.classList.add('active'); 
             document.getElementById('edit-sheet').classList.add('active');
         });
@@ -533,15 +801,58 @@ document.addEventListener('DOMContentLoaded', () => {
             const newName = document.getElementById('edit-name-input').value.trim().toUpperCase() || "NEW HABIT";
             const newMax = parseInt(document.getElementById('edit-target-input').value) || 1;
             const newUnit = document.getElementById('edit-unit-input').value.trim().toUpperCase() || "UNITS";
+            
+            const selectedDays = Array.from(document.querySelectorAll('.day-btn.active')).map(btn => parseInt(btn.getAttribute('data-day')));
 
             if (editingHabitId) {
                 const habit = APP_STATE.habits.find(h => h.id === editingHabitId);
-                habit.name = newName; habit.max = newMax; habit.unit = newUnit;
+                habit.name = newName; 
+                habit.max = newMax; 
+                habit.unit = newUnit;
+                habit.days = selectedDays;
                 Object.keys(habit.history).forEach(date => { if (habit.history[date].current > newMax) habit.history[date].current = newMax; });
             } else {
-                APP_STATE.habits.push({ id: 'h_' + Date.now(), name: newName, max: newMax, unit: newUnit, history: {} });
+                APP_STATE.habits.push({ 
+                    id: 'h_' + Date.now(), 
+                    name: newName, 
+                    max: newMax, 
+                    unit: newUnit, 
+                    days: selectedDays, 
+                    history: {} 
+                });
             }
             closeAllSheets(); reRenderAll(); saveState();
+        });
+    }
+    
+    // CUSTOM DELETE CONFIRMATION UI LOGIC
+    const btnDeleteHabit = document.getElementById('btn-delete-habit');
+    if (btnDeleteHabit) {
+        btnDeleteHabit.addEventListener('click', () => {
+            if (editingHabitId) {
+                document.getElementById('edit-sheet').classList.remove('active');
+                document.getElementById('delete-confirm-sheet').classList.add('active');
+            }
+        });
+    }
+
+    const btnConfirmDelete = document.getElementById('btn-confirm-delete');
+    if (btnConfirmDelete) {
+        btnConfirmDelete.addEventListener('click', () => {
+            if (editingHabitId) {
+                APP_STATE.habits = APP_STATE.habits.filter(h => h.id !== editingHabitId);
+                closeAllSheets(); 
+                reRenderAll(); 
+                saveState();
+            }
+        });
+    }
+
+    const btnCancelDelete = document.getElementById('btn-cancel-delete');
+    if (btnCancelDelete) {
+        btnCancelDelete.addEventListener('click', () => {
+            document.getElementById('delete-confirm-sheet').classList.remove('active');
+            document.getElementById('edit-sheet').classList.add('active');
         });
     }
 
@@ -552,10 +863,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!card) return;
             currentAnalyticsHabitId = card.getAttribute('data-id');
             document.getElementById('analytics-sheet-title').innerText = APP_STATE.habits.find(h => h.id === currentAnalyticsHabitId).name;
+            
+            const avgDisplay = document.getElementById('analytics-average-display');
+            if(avgDisplay) avgDisplay.innerText = 'CALCULATING...';
+
             if(overlay) overlay.classList.add('active'); 
             document.getElementById('analytics-sheet').classList.add('active');
             
-            // Sync slider position on open
             const cSlider = document.getElementById('custom-days-slider');
             const cDisplay = document.getElementById('custom-days-display');
             if(cSlider) cSlider.value = APP_STATE.customDays;
@@ -584,17 +898,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Handle new Volume Bar drag events
     const customDaysSlider = document.getElementById('custom-days-slider');
     const customDaysDisplay = document.getElementById('custom-days-display');
 
     if (customDaysSlider && customDaysDisplay) {
-        // Live update text while dragging
         customDaysSlider.addEventListener('input', (e) => {
             customDaysDisplay.innerText = `${e.target.value} DAYS`;
         });
         
-        // Save and re-draw ONLY when the user lets go of the slider
         customDaysSlider.addEventListener('change', (e) => {
             APP_STATE.customDays = parseInt(e.target.value);
             renderChart();
