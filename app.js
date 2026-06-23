@@ -7,6 +7,7 @@ const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
 
 let localToken = localStorage.getItem('mezameru_drive_token');
 let driveToken = (localToken === 'null' || localToken === 'undefined' || !localToken) ? null : localToken;
+let tokenClient; // Global reference for background token refreshes
 
 const FILE_NAME = 'mezameru_data.json';
 let driveFileId = null;
@@ -19,9 +20,27 @@ const DEFAULT_STATE = {
 // Merge loaded state with defaults in case of missing keys
 let APP_STATE = { ...DEFAULT_STATE, ...(JSON.parse(localStorage.getItem('mezameru_local_state')) || {}) };
 
+function handle401() {
+    return new Promise((resolve, reject) => {
+        if (!tokenClient) reject("Token client not initialized");
+        tokenClient.callback = (resp) => {
+            if (resp && resp.access_token) {
+                driveToken = resp.access_token;
+                localStorage.setItem('mezameru_drive_token', driveToken);
+                resolve(true);
+            } else {
+                reject(false);
+            }
+        };
+        // The empty prompt forces Google to silently refresh the token without a popup
+        tokenClient.requestAccessToken({ prompt: '' }); 
+    });
+}
+
 function logoutUser() {
     driveToken = null;
     localStorage.removeItem('mezameru_drive_token');
+    localStorage.removeItem('mezameru_session_active'); // Clear persistent session
     
     const btnLogin = document.getElementById('btn-google-login');
     if (btnLogin) btnLogin.style.display = 'block';
@@ -33,15 +52,32 @@ function logoutUser() {
     if(loginScreen) loginScreen.classList.add('active');
 }
 
-async function syncWithDrive() {
+async function syncWithDrive(isRetry = false) {
+    if (!driveToken && localStorage.getItem('mezameru_session_active') === 'true') {
+        try { 
+            await handle401(); 
+        } catch(e) { 
+            console.warn("Background auth failed, working offline."); 
+            return; // Stay local, do not log out
+        }
+    }
+    
     if (!driveToken) return;
+
     try {
         const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='${FILE_NAME}'`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${driveToken}` }
         });
         
-        if (searchRes.status === 401) throw new Error("TOKEN_EXPIRED");
+        if (searchRes.status === 401) {
+            if (!isRetry) {
+                await handle401();
+                return syncWithDrive(true); // Retry sync with fresh token
+            } else {
+                throw new Error("TOKEN_EXPIRED");
+            }
+        }
         if (!searchRes.ok) throw new Error("API ERROR");
         
         const searchData = await searchRes.json();
@@ -73,12 +109,12 @@ async function syncWithDrive() {
 
     } catch (error) {
         console.error('SYNC_FAIL:', error);
-        if (error.message === "TOKEN_EXPIRED") logoutUser();
+        // Removed logoutUser() - if sync fails, user stays logged in locally
         reRenderAll();
     }
 }
 
-async function uploadToDrive(isNew = false) {
+async function uploadToDrive(isNew = false, isRetry = false) {
     if (!driveToken) return;
     try {
         const boundary = '-------314159265358979323846';
@@ -115,8 +151,13 @@ async function uploadToDrive(isNew = false) {
         });
         
         if (res.status === 401) {
-            logoutUser();
-            return;
+            if (!isRetry) {
+                await handle401();
+                return uploadToDrive(isNew, true); // Retry upload with fresh token
+            } else {
+                console.error("UPLOAD_FAIL: Token expired and refresh failed.");
+                return; 
+            }
         }
         
         const data = await res.json();
@@ -281,34 +322,43 @@ document.addEventListener('DOMContentLoaded', () => {
     let imageCropper = null; 
 
     // --- OAUTH2 LOGIN INITIALIZATION ---
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: '' // Handled dynamically based on context
+    });
+
     const btnLogin = document.getElementById('btn-google-login');
     if (btnLogin) {
         btnLogin.addEventListener('click', () => {
-            const tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: CLIENT_ID,
-                scope: SCOPES,
-                callback: (tokenResponse) => {
-                    if (tokenResponse && tokenResponse.access_token) {
-                        driveToken = tokenResponse.access_token;
-                        localStorage.setItem('mezameru_drive_token', driveToken);
-                        
-                        btnLogin.style.display = 'none';
-                        const loginStatus = document.getElementById('login-status');
-                        if (loginStatus) loginStatus.style.display = 'block';
-                        
-                        syncWithDrive();
-                    }
+            tokenClient.callback = (tokenResponse) => {
+                if (tokenResponse && tokenResponse.access_token) {
+                    driveToken = tokenResponse.access_token;
+                    localStorage.setItem('mezameru_drive_token', driveToken);
+                    localStorage.setItem('mezameru_session_active', 'true');
+                    
+                    btnLogin.style.display = 'none';
+                    const loginStatus = document.getElementById('login-status');
+                    if (loginStatus) loginStatus.style.display = 'block';
+                    
+                    const loginScreen = document.getElementById('login-screen');
+                    if(loginScreen) loginScreen.classList.remove('active');
+                    
+                    syncWithDrive();
                 }
-            });
+            };
             tokenClient.requestAccessToken();
         });
     }
 
     // --- CHECK LOGIN ON LOAD ---
     const loginScreen = document.getElementById('login-screen');
-    if (driveToken) {
+    const isSessionActive = localStorage.getItem('mezameru_session_active') === 'true';
+    
+    if (isSessionActive) {
         if(loginScreen) loginScreen.classList.remove('active');
-        syncWithDrive();
+        reRenderAll(); // Instantly show UI from localStorage data
+        syncWithDrive(); // Sync and handle token refresh if needed in background
     } else {
         if(loginScreen) loginScreen.classList.add('active');
     }
