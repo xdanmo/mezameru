@@ -143,6 +143,62 @@ const formatDisplayDate = (dateKey) => {
     return `${parseInt(d)} ${months[parseInt(m) - 1]} ${y}`;
 };
 
+// Auto-migrate legacy habits to have a creation date based on oldest log
+const getHabitCreatedAt = (habit) => {
+    if (habit.createdAt) return habit.createdAt;
+    
+    let earliest = formatDateKey(new Date());
+    const keys = Object.keys(habit.history).sort();
+    if (keys.length > 0) earliest = keys[0];
+    
+    habit.createdAt = earliest; // Backfill
+    return earliest;
+};
+
+const calculateStreaks = (habit) => {
+    let currentStreak = 0;
+    let maxStreak = 0;
+    if (!habit) return { current: 0, max: 0 };
+
+    const startKey = getHabitCreatedAt(habit);
+    const todayKey = formatDateKey(new Date());
+
+    let d = new Date(startKey);
+    d.setHours(0, 0, 0, 0);
+    const end = new Date(todayKey);
+    end.setHours(0, 0, 0, 0);
+
+    while (d <= end) {
+        const dateKey = formatDateKey(d);
+        const dayOfWeek = d.getDay();
+        const activeDays = habit.days || [0, 1, 2, 3, 4, 5, 6];
+
+        // Skip calculations on days the habit is not active
+        if (!activeDays.includes(dayOfWeek)) {
+            d.setDate(d.getDate() + 1);
+            continue;
+        }
+
+        const record = habit.history[dateKey] || { status: 'TODO', current: 0 };
+
+        // Explicitly ensuring current === max (100% finished) to register streak 
+        if (record.status === 'COMPLETED' && record.current >= habit.max) {
+            currentStreak++;
+            maxStreak = Math.max(maxStreak, currentStreak);
+        } else if (record.status === 'SKIPPED') {
+            // Maintains/Freezes the current streak
+        } else {
+            // Break streak for TODO or partial completions, unless it's today
+            if (dateKey !== todayKey) {
+                currentStreak = 0;
+            }
+        }
+        d.setDate(d.getDate() + 1);
+    }
+    
+    return { current: currentStreak, max: maxStreak };
+};
+
 const getHabitRecord = (habitId, dateKey) => {
     const habit = APP_STATE.habits.find(h => h.id === habitId);
     if (!habit) return null;
@@ -165,6 +221,10 @@ const renderHomeTab = () => {
     const currentDayOfWeek = new Date(sy, sm - 1, sd).getDay();
 
     APP_STATE.habits.forEach(habit => {
+        // Hide habits in the UI if the selected date is before they were created
+        const habitCreatedAt = getHabitCreatedAt(habit);
+        if (APP_STATE.selectedDate < habitCreatedAt) return;
+
         const activeDays = habit.days || [0, 1, 2, 3, 4, 5, 6];
         if (!activeDays.includes(currentDayOfWeek)) return;
 
@@ -261,7 +321,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnLogin) {
         btnLogin.addEventListener('click', () => {
             const REDIRECT_URI = window.location.href.split('?')[0];
-            // Uses offline access to obtain a refresh token for perpetual login
             dbxAuth.getAuthenticationUrl(REDIRECT_URI, undefined, 'code', 'offline', undefined, undefined, true)
                 .then(authUrl => {
                     window.sessionStorage.setItem("codeVerifier", dbxAuth.codeVerifier);
@@ -277,7 +336,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const authCode = urlParams.get('code');
 
     if (authCode) {
-        // User just redirected back from Dropbox auth
         if(loginScreen) loginScreen.classList.add('active');
         if(btnLogin) btnLogin.style.display = 'none';
         if(loginStatus) loginStatus.style.display = 'block';
@@ -455,6 +513,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     let activeDateElement = null;
 
+    // Build dummy items for the 3 days BEFORE the 15-day range (padding to scroll)
+    for (let i = -18; i < -15; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() + i);
+        const dummy = document.createElement('div');
+        dummy.className = 'dummy-item';
+        dummy.innerHTML = `<span class="date-item-day">${dayNames[d.getDay()]}</span><span class="date-item-num">${d.getDate()}</span>`;
+        if (dateScroller) dateScroller.appendChild(dummy);
+    }
+
+    // Build the 15 standard clickable date blocks leading up to today
     for (let i = -15; i <= 0; i++) {
         const targetDate = new Date(today);
         targetDate.setDate(today.getDate() + i);
@@ -465,32 +534,6 @@ document.addEventListener('DOMContentLoaded', () => {
         dateItem.className = `date-item ${isToday ? 'active' : ''}`; 
         dateItem.innerHTML = `<span class="date-item-day">${dayNames[targetDate.getDay()]}</span><span class="date-item-num">${targetDate.getDate()}</span>`;
         
-        if (i === -15) {
-            for (let k = 1; k <= 3; k++) {
-                const d = new Date(targetDate);
-                d.setDate(d.getDate() - k);
-                const dummy = document.createElement('div');
-                dummy.className = 'dummy-item';
-                dummy.style.left = `calc(${k * -82}px - 4px)`; 
-                dummy.style.top = '-4px';
-                dummy.innerHTML = `<span class="date-item-day">${dayNames[d.getDay()]}</span><span class="date-item-num">${d.getDate()}</span>`;
-                dateItem.appendChild(dummy);
-            }
-        }
-
-        if (i === 0) {
-            for (let k = 1; k <= 3; k++) {
-                const d = new Date(targetDate);
-                d.setDate(d.getDate() + k);
-                const dummy = document.createElement('div');
-                dummy.className = 'dummy-item';
-                dummy.style.right = `calc(${k * -82}px - 4px)`; 
-                dummy.style.top = '-4px';
-                dummy.innerHTML = `<span class="date-item-day">${dayNames[d.getDay()]}</span><span class="date-item-num">${d.getDate()}</span>`;
-                dateItem.appendChild(dummy);
-            }
-        }
-
         if (dateScroller) dateScroller.appendChild(dateItem);
         
         if (isToday) {
@@ -510,6 +553,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Build dummy items for the 3 days AFTER today (future padding)
+    for (let i = 1; i <= 3; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() + i);
+        const dummy = document.createElement('div');
+        dummy.className = 'dummy-item';
+        dummy.innerHTML = `<span class="date-item-day">${dayNames[d.getDay()]}</span><span class="date-item-num">${d.getDate()}</span>`;
+        if (dateScroller) dateScroller.appendChild(dummy);
+    }
+
+    // Automatically scroll to today on load
     if (activeDateElement) setTimeout(() => activeDateElement.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }), 100); 
 
     // --- BRUTALIST CHART LOGIC ---
@@ -540,16 +594,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const labels = [], dataPoints = [];
         const shortMonths = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
         const habit = APP_STATE.habits.find(h => h.id === currentAnalyticsHabitId);
+        const habitCreatedAt = getHabitCreatedAt(habit);
         const activeDays = habit.days || [0, 1, 2, 3, 4, 5, 6];
 
         let totalPossible = 0;
         let totalAchieved = 0;
 
         datesArray.forEach(dateObj => {
-            if (habit && activeDays.includes(dateObj.getDay())) {
+            const currentObjKey = formatDateKey(dateObj);
+            
+            if (currentObjKey < habitCreatedAt) {
+                // Ignore tracking for dates before the habit was created
+                labels.push(`${shortMonths[dateObj.getMonth()]} ${dateObj.getDate()}`);
+                dataPoints.push(null);
+            } else if (habit && activeDays.includes(dateObj.getDay())) {
                 labels.push(`${shortMonths[dateObj.getMonth()]} ${dateObj.getDate()}`);
                 
-                const record = habit.history[formatDateKey(dateObj)];
+                const record = habit.history[currentObjKey];
                 let pct = 0;
                 if (record && record.status === 'COMPLETED') pct = 100;
                 else if (record && record.current > 0) pct = Math.round((record.current / habit.max) * 100);
@@ -566,10 +627,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const avgDisplay = document.getElementById('analytics-average-display');
         if (avgDisplay) {
             if (totalPossible === 0) {
-                avgDisplay.innerText = `COMPLETION RATE: N/A`;
+                avgDisplay.innerText = `COMPLETION: N/A`;
             } else {
                 const avgPct = Math.round((totalAchieved / totalPossible) * 100);
-                avgDisplay.innerText = `COMPLETION RATE: ${avgPct}%`;
+                avgDisplay.innerText = `COMPLETION: ${avgPct}%`;
             }
         }
 
@@ -589,10 +650,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     data: dataPoints, 
                     borderColor: fgColor, 
                     borderWidth: 4, 
-                    tension: 0.4, 
+                    tension: 0.4, // ADDS THE CURVE TO THE LINE
                     backgroundColor: bgColor,
-                    pointRadius: 0, 
-                    pointHoverRadius: 0, 
+                    pointRadius: 0, // REMOVES DOTS
+                    pointHoverRadius: 0, // REMOVES HOVER DOTS
                     fill: false,
                     spanGaps: true 
                 }] 
@@ -600,7 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false, 
-                interaction: {
+                interaction: { // Mode 'index' allows hover tooltips to work without dots
                     mode: 'index',
                     intersect: false,
                 },
@@ -665,6 +726,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             document.getElementById('sheet-title').innerText = habit.name;
             document.getElementById('sheet-target').innerText = `GOAL: ${habit.max} ${habit.unit}`;
+            
+            const streaks = calculateStreaks(habit);
+            const streakDisplay = document.getElementById('sheet-max-streak');
+            if (streakDisplay) streakDisplay.innerText = `🔥 MAX STREAK: ${streaks.max}`;
             
             if(progressInput) progressInput.value = tempCurrentVal;
             if(progressMaxDisplay) progressMaxDisplay.innerText = `/${habit.max}`;
@@ -810,7 +875,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     name: newName, 
                     max: newMax, 
                     unit: newUnit, 
-                    days: selectedDays, 
+                    days: selectedDays,
+                    createdAt: formatDateKey(new Date()), // Inject creation date
                     history: {} 
                 });
             }
@@ -818,6 +884,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    // CUSTOM DELETE CONFIRMATION UI LOGIC
     const btnDeleteHabit = document.getElementById('btn-delete-habit');
     if (btnDeleteHabit) {
         btnDeleteHabit.addEventListener('click', () => {
@@ -854,8 +921,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = e.target.closest('.edit-habit-card');
             if (!card) return;
             currentAnalyticsHabitId = card.getAttribute('data-id');
-            document.getElementById('analytics-sheet-title').innerText = APP_STATE.habits.find(h => h.id === currentAnalyticsHabitId).name;
+            const targetHabit = APP_STATE.habits.find(h => h.id === currentAnalyticsHabitId);
             
+            document.getElementById('analytics-sheet-title').innerText = targetHabit.name;
+            
+            // Streak Injection
+            const streaks = calculateStreaks(targetHabit);
+            const streakAnalyticsDisplay = document.getElementById('analytics-streak-display');
+            if (streakAnalyticsDisplay) streakAnalyticsDisplay.innerText = `🔥 CUR: ${streaks.current} | MAX: ${streaks.max}`;
+
             const avgDisplay = document.getElementById('analytics-average-display');
             if(avgDisplay) avgDisplay.innerText = 'CALCULATING...';
 
