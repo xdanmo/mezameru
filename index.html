@@ -93,7 +93,7 @@
                 
                 <input type="text" id="profile-name-input" class="profile-name" value="PROFILE" placeholder="YOUR NAME">
                 
-                <p class="mono-text highlight" id="sync-status-msg">CLOUD SYNC : ACTIVE</p>
+                <p class="stat-pill" id="sync-status-msg" style="margin-top: 8px;">CLOUD SYNC : ACTIVE</p>
             </div>
 
             <div class="account-actions" style="width: 100%; margin-bottom: 24px; display: flex; flex-direction: column; gap: 12px;">
@@ -135,6 +135,9 @@
                 <div>
                     <h3 id="sheet-title">HABIT NAME</h3>
                     <p id="sheet-target" class="mono-text">DAILY GOAL</p>
+                    <div style="margin-top: 12px; display: flex;">
+                        <div class="stat-pill" id="sheet-max-streak" style="background: var(--bg); color: var(--fg);">🔥 MAX STREAK: 0</div>
+                    </div>
                 </div>
                 <button class="btn-close-sheet" id="btn-close-status">[X]</button>
             </div>
@@ -243,7 +246,10 @@
             <div class="sheet-header">
                 <div>
                     <h3 id="analytics-sheet-title">HABIT NAME</h3>
-                    <p class="mono-text highlight" id="analytics-average-display" style="margin-top: 4px;">COMPLETION RATE: --%</p>
+                    <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+                        <div class="stat-pill" id="analytics-average-display" style="background: var(--bg); color: var(--fg);">COMPLETION: --%</div>
+                        <div class="stat-pill" id="analytics-streak-display" style="background: var(--bg); color: var(--fg);">🔥 CUR: -- | MAX: --</div>
+                    </div>
                 </div>
                 <button class="btn-close-sheet" id="btn-close-analytics">[X]</button>
             </div>
